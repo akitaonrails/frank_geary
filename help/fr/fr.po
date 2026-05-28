@@ -9,16 +9,16 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: geary-help-master\n"
-"POT-Creation-Date: 2023-07-10 09:23+0000\n"
-"PO-Revision-Date: 2023-07-18 17:37+0200\n"
-"Last-Translator: Irénée Thirion <irenee.thirion@e.email>\n"
+"POT-Creation-Date: 2026-05-10 13:24+0000\n"
+"PO-Revision-Date: 2026-05-12 21:53+0200\n"
+"Last-Translator: Julien Palard <julien@palard.fr>\n"
 "Language-Team: French <gnomefr@traduc.org>\n"
 "Language: fr_FR\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
-"X-Generator: Poedit 3.3.2\n"
+"X-Generator: Poedit 3.9\n"
 
 #. Put one translator per line, in the form NAME <EMAIL>, YEAR1, YEAR2
 msgctxt "_"
@@ -314,9 +314,9 @@ msgstr "Trouver de l’aide"
 #. (itstool) path: section/p
 #: C/bugs.page:15
 msgid ""
-"If you are having trouble using Geary, please <link href=\"https://wiki."
-"gnome.org/Apps/Geary/Contact\">get in touch</link> with the Geary community "
-"about the problem."
+"If you are having trouble using Geary, please <link href=\"https://"
+"wiki.gnome.org/Apps/Geary/Contact\">get in touch</link> with the Geary "
+"community about the problem."
 msgstr ""
 "Si vous avez une difficulté dans l’utilisation de Geary, <link "
 "href=\"https://wiki.gnome.org/Apps/Geary/Contact\">contactez</link> la "
@@ -449,9 +449,9 @@ msgid ""
 "link> for more information and options for contributing financially to "
 "Geary's development."
 msgstr ""
-"Reportez-vous <link href=\"https://wiki.gnome.org/Apps/Geary/"
-"Contribute\">au wiki</link> pour plus d’informations et d’options sur la "
-"façon de contribuer financièrement au développement de Geary."
+"Reportez-vous <link href=\"https://wiki.gnome.org/Apps/Geary/Contribute\">au "
+"wiki</link> pour plus d’informations et d’options sur la façon de contribuer "
+"financièrement au développement de Geary."
 
 #. (itstool) path: info/title
 #: C/index.page:7
@@ -600,8 +600,8 @@ msgid ""
 "page</link>."
 msgstr ""
 "Pour en savoir plus sur les fonctionnalités sur lesquelles nous travaillons, "
-"et le futur de Geary, vous pouvez visiter le <link href=\"https://wiki.gnome."
-"org/Apps/Geary\">wiki </link> de Geary."
+"et le futur de Geary, vous pouvez visiter le <link href=\"https://"
+"wiki.gnome.org/Apps/Geary\">wiki </link> de Geary."
 
 #. (itstool) path: page/title
 #. (itstool) path: section/title
@@ -1000,7 +1000,7 @@ msgstr ""
 #. (itstool) path: td/p
 #: C/search.page:47
 msgid "<input>is:read</input>"
-msgstr "<input>est :lu</input>"
+msgstr "<input>est:lu</input>"
 
 #. (itstool) path: td/p
 #: C/search.page:48
@@ -1010,7 +1010,7 @@ msgstr "Cherche les messages qui ont été marqués comme lus."
 #. (itstool) path: td/p
 #: C/search.page:51
 msgid "<input>is:starred</input>"
-msgstr "<input>est :marqué</input>"
+msgstr "<input>est:marqué</input>"
 
 #. (itstool) path: td/p
 #: C/search.page:52
@@ -1020,7 +1020,7 @@ msgstr "Trouve les messages qui ont été marqués avec une étoile."
 #. (itstool) path: td/p
 #: C/search.page:55
 msgid "<input>is:unread</input>"
-msgstr "<input>est :non-lu</input>"
+msgstr "<input>est:non-lu</input>"
 
 #. (itstool) path: td/p
 #: C/search.page:56
