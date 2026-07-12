@@ -54,7 +54,17 @@ PACKAGES=(
   gcr webkitgtk enchant gobject-introspection zstd gettext mesa-libgl
 )
 
-run_root pacman --root "${ROOTFS}" --config "${PACMAN_CONF}" --cachedir "${ROOTFS}/var/cache/pacman/pkg" -Sy --noconfirm "${PACKAGES[@]}"
+for attempt in 1 2 3 4 5; do
+  if run_root pacman --root "${ROOTFS}" --config "${PACMAN_CONF}" --cachedir "${ROOTFS}/var/cache/pacman/pkg" -Sy --noconfirm "${PACKAGES[@]}"; then
+    break
+  fi
+  if [[ ${attempt} -eq 5 ]]; then
+    printf 'Failed to install pinned ALA packages after %s attempts.\n' "${attempt}" >&2
+    exit 1
+  fi
+  printf 'Pinned ALA package install failed; retrying attempt %s/5 after backoff.\n' "$((attempt + 1))" >&2
+  sleep $((attempt * 15))
+done
 
 rm -rf "${SRC_COPY}" "${STAGING}"
 mkdir -p "${SRC_COPY}" "${STAGING}"
