@@ -1043,7 +1043,17 @@ public class Composer.Widget : Gtk.EventBox, Geary.BaseInterface {
      * Loads and sets contact auto-complete data for the current account.
      */
     private void load_entry_completions() {
-        Application.ContactStore contacts = this.sender_context.contacts;
+        // Suggest recipients from every account, searching the
+        // sender's account first so its contacts win when the same
+        // address appears in more than one account.
+        var contacts = new Gee.ArrayList<Application.ContactStore>();
+        contacts.add(this.sender_context.contacts);
+        foreach (Application.AccountContext context
+                 in this.application.get_account_contexts()) {
+            if (context != this.sender_context) {
+                contacts.add(context.contacts);
+            }
+        }
         this.to_row.value.completion = new ContactEntryCompletion(contacts);
         this.cc_row.value.completion = new ContactEntryCompletion(contacts);
         this.bcc_row.value.completion = new ContactEntryCompletion(contacts);

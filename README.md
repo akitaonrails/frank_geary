@@ -26,7 +26,11 @@ contacts above a high importance threshold, so many legitimate senders you have
 already seen never appear. FrankGeary lowers the visibility threshold to
 `SEEN`, suggesting anyone whose mail has reached your inbox, while a
 conservative filter drops `noreply`/`donotreply` addresses so machine senders
-don't pollute the list.
+don't pollute the list. Suggestions are drawn from every configured account —
+not just the one you are sending from — and are de-duplicated by address.
+The suggestion list is shown in a popover so it also works on Wayland
+compositors (such as Hyprland) that never display GTK's stock completion
+popup.
 
 ![Geary recipient autocomplete popup](docs/images/autocomplete-popup.png)
 
