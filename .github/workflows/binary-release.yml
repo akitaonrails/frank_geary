@@ -1,0 +1,137 @@
+name: Binary release asset
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing git tag to build and upload to'
+        required: true
+        default: 'v46.0-frank.1'
+      upload:
+        description: 'Upload asset to the GitHub Release'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Arch x86_64 binary asset
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            appstream \
+            cairo \
+            desktop-file-utils \
+            enchant \
+            folks \
+            gcr \
+            gdk-pixbuf2 \
+            gettext \
+            git \
+            github-cli \
+            glib2 \
+            gmime3 \
+            gnome-online-accounts \
+            gobject-introspection \
+            gsound \
+            gspell \
+            gtk3 \
+            icu \
+            iso-codes \
+            itstool \
+            json-glib \
+            libgee \
+            libhandy \
+            libpeas-2 \
+            libsecret \
+            libsoup3 \
+            libstemmer \
+            libunwind \
+            libxml2 \
+            libytnef \
+            meson \
+            ninja \
+            pkgconf \
+            sqlite \
+            vala \
+            webkit2gtk-4.1 \
+            zstd
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Resolve version
+        id: version
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          tag='${{ inputs.tag || github.ref_name }}'
+          pkgver="${tag#v}"
+          pkgver="${pkgver//-/_}"
+          printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
+          printf 'pkgver=%s\n' "$pkgver" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: |
+          meson setup build --prefix=/usr --buildtype=release -Dprofile=release
+          meson compile -C build
+
+      - name: Stage install tree
+        run: |
+          meson install -C build --destdir "$RUNNER_TEMP/stage"
+          manifest_dir="$RUNNER_TEMP/stage/usr/share/doc/frank-geary"
+          install -d "$manifest_dir"
+          {
+            printf 'name: frank-geary\n'
+            printf 'version: %s\n' '${{ steps.version.outputs.pkgver }}'
+            printf 'tag: %s\n' '${{ steps.version.outputs.tag }}'
+            printf 'commit: %s\n' "$(git rev-parse HEAD)"
+            printf 'built: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            printf 'workflow-run: %s\n' "$GITHUB_RUN_ID"
+          } > "$manifest_dir/BUILD-MANIFEST.txt"
+
+      - name: Create asset and checksum
+        id: asset
+        run: |
+          asset="$RUNNER_TEMP/frank-geary-${{ steps.version.outputs.pkgver }}-x86_64.tar.zst"
+          tar -C "$RUNNER_TEMP/stage" --zstd -cf "$asset" ./usr
+          test -s "$asset"
+          tar --zstd -tf "$asset" | grep -Fx './usr/share/doc/frank-geary/BUILD-MANIFEST.txt'
+          tar --zstd -tf "$asset" | grep -Fx './usr/bin/geary'
+          sha256sum "$asset" | sed "s|$RUNNER_TEMP/||" > "$asset.sha256"
+          cat "$asset.sha256"
+          printf 'asset=%s\n' "$asset" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: frank-geary-binary-asset
+          path: |
+            ${{ steps.asset.outputs.asset }}
+            ${{ steps.asset.outputs.asset }}.sha256
+
+      - name: Upload to GitHub Release
+        if: github.event_name == 'push' || inputs.upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag='${{ steps.version.outputs.tag }}'
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag \
+              --title "FrankGeary ${tag#v}" \
+              --notes 'FrankGeary release: GNOME Geary with FrankGeary workflow improvements. The x86_64 binary asset is consumed by the frank-geary-bin AUR package.'
+          fi
+          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber \
+            '${{ steps.asset.outputs.asset }}' \
+            '${{ steps.asset.outputs.asset }}.sha256'
