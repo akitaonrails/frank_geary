@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            appstream \
+            aspell \
+            cairo \
+            dbus \
+            desktop-file-utils \
+            enchant \
+            folks \
+            gcr \
+            gdk-pixbuf2 \
+            git \
+            gettext \
+            glib2 \
+            gmime3 \
+            gnome-online-accounts \
+            gobject-introspection \
+            gsound \
+            gspell \
+            gtk3 \
+            hspell \
+            icu \
+            iso-codes \
+            itstool \
+            json-glib \
+            libgee \
+            libhandy \
+            libpeas-2 \
+            libsecret \
+            libsoup3 \
+            libstemmer \
+            libunwind \
+            libvoikko \
+            libxml2 \
+            libytnef \
+            meson \
+            ninja \
+            nuspell \
+            pkgconf \
+            sqlite \
+            vala \
+            webkit2gtk-4.1 \
+            xorg-server-xvfb
+
+      - name: Configure
+        run: meson setup build -Dprofile=development -Dlibunwind=disabled
+
+      - name: Build
+        run: meson compile -C build
+
+      - name: Test
+        run: >-
+          xvfb-run -a dbus-run-session -- meson test -C build --print-errorlogs
+          vala-unit:tests
+          geary:desktop-file-validate
+          geary:org.gnome.Geary.metainfo.xml-validate
+          geary:mail-merge-test
+          geary:engine-tests

@@ -1,0 +1,87 @@
+name: AUR packaging
+
+on:
+  push:
+    paths:
+      - 'packaging/aur/**'
+      - '.github/workflows/aur.yml'
+  pull_request:
+    paths:
+      - 'packaging/aur/**'
+      - '.github/workflows/aur.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish frank-geary to AUR'
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install packaging tools
+        run: pacman -Syu --noconfirm --needed git pacman-contrib namcap openssh
+
+      - name: Prepare build user
+        run: |
+          useradd -m builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Generate .SRCINFO
+        working-directory: packaging/aur/frank-geary
+        run: runuser -u builder -- makepkg --printsrcinfo > .SRCINFO.generated
+
+      - name: Check .SRCINFO is current
+        working-directory: packaging/aur/frank-geary
+        run: diff -u .SRCINFO .SRCINFO.generated
+
+      - name: Lint PKGBUILD
+        working-directory: packaging/aur/frank-geary
+        run: namcap PKGBUILD
+
+  publish:
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install publishing tools
+        run: pacman -Syu --noconfirm --needed git openssh
+
+      - name: Configure SSH
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          test -n "${AUR_SSH_PRIVATE_KEY}"
+          install -d -m 700 /tmp/aur-ssh
+          printf '%s\n' "${AUR_SSH_PRIVATE_KEY}" > /tmp/aur-ssh/id_ed25519
+          chmod 600 /tmp/aur-ssh/id_ed25519
+          ssh-keyscan aur.archlinux.org > /tmp/aur-ssh/known_hosts
+          cat > /tmp/aur-ssh/config <<'EOF'
+          Host aur.archlinux.org
+            User aur
+            IdentityFile /tmp/aur-ssh/id_ed25519
+            UserKnownHostsFile /tmp/aur-ssh/known_hosts
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Publish frank-geary
+        env:
+          GIT_SSH_COMMAND: ssh -F /tmp/aur-ssh/config
+        run: |
+          git clone ssh://aur@aur.archlinux.org/frank-geary.git /tmp/frank-geary-aur
+          cp packaging/aur/frank-geary/PKGBUILD packaging/aur/frank-geary/.SRCINFO /tmp/frank-geary-aur/
+          cd /tmp/frank-geary-aur
+          git config user.name 'FrankGeary Release Bot'
+          git config user.email 'akitaonrails@users.noreply.github.com'
+          git add PKGBUILD .SRCINFO
+          git diff --cached --quiet && exit 0
+          git commit -m "Update frank-geary package"
+          git push

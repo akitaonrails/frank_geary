@@ -34,6 +34,7 @@ public class ConversationMessage : Gtk.Grid, Geary.BaseInterface {
 
     private const string ACTION_CONVERSATION_NEW = "conversation-new";
     private const string ACTION_COPY_EMAIL = "copy-email";
+    private const string ACTION_COPY_IMAGE = "copy-image";
     private const string ACTION_COPY_LINK = "copy-link";
     private const string ACTION_COPY_SELECTION = "copy-selection";
     private const string ACTION_OPEN_INSPECTOR = "open-inspector";
@@ -506,6 +507,8 @@ public class ConversationMessage : Gtk.Grid, Geary.BaseInterface {
             .activate.connect(on_link_activated);
         add_action(ACTION_COPY_EMAIL, true, VariantType.STRING)
             .activate.connect(on_copy_email_address);
+        add_action(ACTION_COPY_IMAGE, true, new VariantType("(sms)"))
+            .activate.connect(on_copy_image);
         add_action(ACTION_COPY_LINK, true, VariantType.STRING)
             .activate.connect(on_copy_link);
         add_action(ACTION_OPEN_LINK, true, VariantType.STRING)
@@ -1313,6 +1316,7 @@ public class ConversationMessage : Gtk.Grid, Geary.BaseInterface {
 
         if (hit_test.context_is_image()) {
             string uri = hit_test.get_image_uri();
+            set_action_enabled(ACTION_COPY_IMAGE, this.resources.has_key(uri));
             set_action_enabled(ACTION_SAVE_IMAGE, this.resources.has_key(uri));
             model.append_section(
                 null,
@@ -1469,6 +1473,41 @@ public class ConversationMessage : Gtk.Grid, Geary.BaseInterface {
         Gtk.Clipboard clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD);
         clipboard.set_text(value, -1);
         clipboard.store();
+    }
+
+    private void on_copy_image(Variant? param) {
+        string uri = (string) param.get_child_value(0);
+        WebKit.WebResource? response = this.resources.get(uri);
+        if (response != null) {
+            response.get_data.begin(null, (obj, res) => {
+                    try {
+                        uint8[] data = response.get_data.end(res);
+                        copy_image_data(data);
+                    } catch (GLib.Error err) {
+                        debug(
+                            "Failed to get image data from web view: %s",
+                            err.message
+                        );
+                    }
+                });
+        }
+    }
+
+    private void copy_image_data(uint8[] data) {
+        try {
+            Gdk.PixbufLoader loader = new Gdk.PixbufLoader();
+            loader.write(data);
+            loader.close();
+
+            Gdk.Pixbuf? pixbuf = loader.get_pixbuf();
+            if (pixbuf != null) {
+                Gtk.Clipboard clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD);
+                clipboard.set_image(pixbuf);
+                clipboard.store();
+            }
+        } catch (GLib.Error err) {
+            debug("Failed to copy image data: %s", err.message);
+        }
     }
 
     private void on_save_image(Variant? param) {

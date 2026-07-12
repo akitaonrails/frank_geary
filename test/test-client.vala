@@ -52,6 +52,7 @@ int main(string[] args) {
     client.add_suite(new Components.ValidatorTest().steal_suite());
     client.add_suite(new Composer.WebViewTest().steal_suite());
     client.add_suite(new Composer.WidgetTest().steal_suite());
+    client.add_suite(new Composer.ContactEntryCompletionTest().steal_suite());
     client.add_suite(new Util.Cache.Test().steal_suite());
     client.add_suite(new Util.Email.Test().steal_suite());
     client.add_suite(new Util.JS.Test().steal_suite());
