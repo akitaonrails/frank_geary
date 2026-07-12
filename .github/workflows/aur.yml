@@ -14,7 +14,13 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: 'Push PKGBUILD/.SRCINFO to AUR repositories'
+        description: 'Push ready PKGBUILD/.SRCINFO files to AUR repositories'
+        required: true
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+      publish_binary:
+        description: 'Also publish frank-geary-bin if its release asset/checksum are ready'
         required: true
         default: 'false'
         type: choice
@@ -78,8 +84,8 @@ jobs:
         # current Arch container. Enable after dependencies are modernized or
         # pinned compatibility packages are available.
 
-  publish:
-    name: Publish to AUR
+  publish-source:
+    name: Publish source package to AUR
     needs: validate
     runs-on: ubuntu-latest
     container: archlinux:base-devel
@@ -95,19 +101,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Refuse placeholder package metadata
+      - name: Refuse placeholder source package metadata
         run: |
-          if grep -R "sha256sums=('SKIP')" packaging/aur/*/PKGBUILD; then
-            printf 'AUR publishing is blocked until release checksums replace SKIP.\n' >&2
+          if grep -q "sha256sums=('SKIP')" packaging/aur/frank-geary/PKGBUILD; then
+            printf 'Source AUR publishing is blocked until the source checksum replaces SKIP.\n' >&2
             exit 1
           fi
-          if grep -R "Release-time TODO" packaging/aur/*/PKGBUILD; then
-            printf 'AUR publishing is blocked while release-time TODOs remain.\n' >&2
+          if grep -q "Release-time TODO" packaging/aur/frank-geary/PKGBUILD; then
+            printf 'Source AUR publishing is blocked while source release-time TODOs remain.\n' >&2
             exit 1
           fi
           source_tag=$(sed -n "s/^_tag='\(.*\)'$/\1/p" packaging/aur/frank-geary/PKGBUILD)
-          bin_tag=$(sed -n "s/^_tag='\(.*\)'$/\1/p" packaging/aur/frank-geary-bin/PKGBUILD)
-          test "${source_tag}" = "${bin_tag}"
           if test "${GITHUB_EVENT_NAME}" = "release" && test "${source_tag}" != "${GITHUB_REF_NAME}"; then
             printf 'AUR publishing is blocked: release ref %s does not match PKGBUILD _tag %s.\n' "${GITHUB_REF_NAME}" "${source_tag}" >&2
             exit 1
@@ -143,7 +147,67 @@ jobs:
           git -c user.name='FrankGeary CI' -c user.email='ci@users.noreply.github.com' commit -m 'Update frank-geary package'
           git push origin master
 
+  publish-binary:
+    name: Publish binary package to AUR
+    needs: validate
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    if: >-
+      ${{
+        github.event_name == 'release' ||
+        (github.event_name == 'workflow_dispatch' && inputs.publish == 'true' && inputs.publish_binary == 'true')
+      }}
+    steps:
+      - name: Prepare Arch container
+        run: pacman -Syu --noconfirm git openssh sudo
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check binary package readiness
+        id: binary_ready
+        run: |
+          if grep -q "sha256sums=('SKIP')" packaging/aur/frank-geary-bin/PKGBUILD; then
+            printf 'frank-geary-bin is not ready: release checksum is still SKIP. Skipping binary AUR publish.\n'
+            printf 'ready=false\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -q "Release-time TODO" packaging/aur/frank-geary-bin/PKGBUILD; then
+            printf 'frank-geary-bin is not ready: release-time TODOs remain. Skipping binary AUR publish.\n'
+            printf 'ready=false\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          bin_tag=$(sed -n "s/^_tag='\(.*\)'$/\1/p" packaging/aur/frank-geary-bin/PKGBUILD)
+          if test "${GITHUB_EVENT_NAME}" = "release" && test "${bin_tag}" != "${GITHUB_REF_NAME}"; then
+            printf 'frank-geary-bin is not ready: release ref %s does not match PKGBUILD _tag %s.\n' "${GITHUB_REF_NAME}" "${bin_tag}"
+            printf 'ready=false\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf 'ready=true\n' >> "$GITHUB_OUTPUT"
+
+      - name: Configure AUR SSH
+        if: steps.binary_ready.outputs.ready == 'true'
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+        run: |
+          test -n "${AUR_SSH_KEY}"
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "${AUR_SSH_KEY}" > ~/.ssh/aur
+          chmod 0600 ~/.ssh/aur
+          ssh-keyscan -t ed25519 aur.archlinux.org > ~/.ssh/known_hosts.new
+          ssh-keygen -lf ~/.ssh/known_hosts.new | grep -F 'SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4'
+          mv ~/.ssh/known_hosts.new ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host aur.archlinux.org
+            User aur
+            IdentityFile ~/.ssh/aur
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+          chmod 0600 ~/.ssh/config
+
       - name: Push binary package
+        if: steps.binary_ready.outputs.ready == 'true'
         run: |
           git clone ssh://aur@aur.archlinux.org/frank-geary-bin.git /tmp/frank-geary-bin-aur
           cp packaging/aur/frank-geary-bin/PKGBUILD packaging/aur/frank-geary-bin/.SRCINFO /tmp/frank-geary-bin-aur/
