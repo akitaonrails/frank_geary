@@ -27,6 +27,12 @@
         <description>True if the formatting toolbar in the composer is shown.</description>
     </key>
 
+    <key name="folder-list-sidebar-visible" type="b">
+        <default>true</default>
+        <summary>Show/hide folder list sidebar</summary>
+        <description>True if the folder list sidebar is shown.</description>
+    </key>
+
     <key name="autoselect" type="b">
         <default>true</default>
         <summary>Autoselect next message</summary>

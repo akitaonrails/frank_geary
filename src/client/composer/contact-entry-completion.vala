@@ -11,7 +11,7 @@ public class ContactEntryCompletion : Gtk.EntryCompletion, Geary.BaseInterface {
 
     // Minimum visibility for the contact to appear in autocompletion.
     private const Geary.Contact.Importance VISIBILITY_THRESHOLD =
-        Geary.Contact.Importance.RECEIVED_FROM;
+        Geary.Contact.Importance.SEEN;
 
 
     public enum Column {
@@ -99,6 +99,23 @@ public class ContactEntryCompletion : Gtk.EntryCompletion, Geary.BaseInterface {
             insert_address_at_cursor(this.last_iter);
             this.last_iter = null;
         }
+    }
+
+    internal static bool is_completion_visible(int highest_importance) {
+        return highest_importance >= VISIBILITY_THRESHOLD;
+    }
+
+    internal static bool is_completion_address(string email) {
+        string[] parts = email.split("@", 2);
+        if (parts.length != 2) {
+            return true;
+        }
+
+        string local_part = parts[0].normalize().casefold();
+        string compact = local_part.replace("-", "");
+        compact = compact.replace("_", "");
+        compact = compact.replace(".", "");
+        return compact != "noreply" && compact != "donotreply";
     }
 
     private void update_addresses() {
@@ -244,11 +261,13 @@ public class ContactEntryCompletion : Gtk.EntryCompletion, Geary.BaseInterface {
             Gtk.ListStore model = new_model();
             foreach (Application.Contact contact in results) {
                 foreach (Geary.RFC822.MailboxAddress addr
-                         in contact.email_addresses) {
-                    Gtk.TreeIter iter;
-                    model.append(out iter);
-                    model.set(iter, Column.CONTACT, contact);
-                    model.set(iter, Column.MAILBOX, addr);
+                          in contact.email_addresses) {
+                    if (is_completion_address(addr.address)) {
+                        Gtk.TreeIter iter;
+                        model.append(out iter);
+                        model.set(iter, Column.CONTACT, contact);
+                        model.set(iter, Column.MAILBOX, addr);
+                    }
                 }
             }
             this.model = model;
