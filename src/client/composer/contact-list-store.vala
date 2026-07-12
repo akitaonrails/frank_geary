@@ -164,7 +164,7 @@ public class ContactListStore : Gtk.ListStore {
                 if (path != null)
                     row_changed(path, iter);
             } else {
-                remove(ref iter);
+                remove(iter);
             }
             
             return;
