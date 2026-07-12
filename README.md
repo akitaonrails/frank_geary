@@ -1,19 +1,22 @@
 
-Geary: Send and receive email
-=============================
+FrankGeary: Geary with focused workflow improvements
+====================================================
 
 ![Geary icon](https://gitlab.gnome.org/GNOME/geary/raw/HEAD/icons/hicolor/scalable/apps/org.gnome.Geary.svg)
 
-Geary is an email application built around conversations, for the
-GNOME desktop. It allows you to read, find and send email with a
-straight-forward, modern interface.
+FrankGeary packages the GNOME Geary email client with a few focused workflow
+changes:
 
-Visit https://gitlab.gnome.org/GNOME/geary/-/wikis for more information.
+ * wider contact autocomplete with conservative no-reply filtering;
+ * a right-click **Copy Image** action for images already loaded in a message;
+ * a manual folder sidebar toggle using <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd>.
 
-**GitHub users please note**: Bug reports, code contributions and
-translations are managed using GNOME's infrastructure, so we cannot
-accept tickets or pull requests on GitHub. Please see the links below
-for more information.
+The project tracks GNOME Geary closely so updates can be integrated cleanly.
+
+Official Geary lives at https://gitlab.gnome.org/GNOME/geary.
+
+FrankGeary-specific issues belong in this GitHub repository. Bugs that
+also reproduce in unmodified Geary should be reported upstream.
 
 ![Geary displaying a conversation](https://static.gnome.org/appdata/geary/geary-40-main-window.png)
 

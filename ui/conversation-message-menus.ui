@@ -24,6 +24,10 @@
     </section>
     <section id="context_menu_image">
       <item>
+        <attribute name="label" translatable="yes">Copy _Image</attribute>
+        <attribute name="action">msg.copy-image</attribute>
+      </item>
+      <item>
         <attribute name="label" translatable="yes">Save _Image As…</attribute>
         <attribute name="action">msg.save-image</attribute>
       </item>

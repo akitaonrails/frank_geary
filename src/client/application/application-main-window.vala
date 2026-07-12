@@ -28,6 +28,7 @@ public class Application.MainWindow :
     public const string ACTION_SELECT_INBOX = "select-inbox";
     public const string ACTION_SHOW_COPY_MENU = "show-copy-menu";
     public const string ACTION_TOGGLE_JUNK = "toggle-conversation-junk";
+    public const string ACTION_TOGGLE_FOLDER_LIST_SIDEBAR = "toggle-folder-list-sidebar";
     public const string ACTION_TRASH_CONVERSATION = "trash-conversation";
     public const string ACTION_ZOOM = "zoom";
     public const string ACTION_NAVIGATION_BACK = "navigation-back";
@@ -46,6 +47,7 @@ public class Application.MainWindow :
         { ACTION_SEARCH, on_search_activated },
         { ACTION_SELECT_INBOX, on_select_inbox, "i" },
         { ACTION_NAVIGATION_BACK, go_to_previous_pane},
+        { ACTION_TOGGLE_FOLDER_LIST_SIDEBAR, on_toggle_folder_list_sidebar },
 
         // Message actions
         { ACTION_REPLY_CONVERSATION, on_reply_conversation },
@@ -263,6 +265,9 @@ public class Application.MainWindow :
         owner.add_window_accelerators(
             ACTION_ZOOM+("('normal')"), { "<Ctrl>0" }
         );
+        owner.add_window_accelerators(
+            ACTION_TOGGLE_FOLDER_LIST_SIDEBAR, { "<Ctrl><Shift>M" }
+        );
     }
 
 
@@ -302,6 +307,7 @@ public class Application.MainWindow :
     public bool is_folder_list_shown {
         get {
             return (
+                this.folder_list_sidebar_visible &&
                 (!this.outer_leaflet.folded ||
                  this.outer_leaflet.visible_child_name == INNER_LEAFLET) &&
                 (!this.inner_leaflet.folded ||
@@ -358,6 +364,17 @@ public class Application.MainWindow :
     public int window_height { get; set; }
     public bool window_maximized { get; set; }
 
+    private bool _folder_list_sidebar_visible = true;
+    public bool folder_list_sidebar_visible {
+        get { return this._folder_list_sidebar_visible; }
+        set {
+            if (this._folder_list_sidebar_visible != value) {
+                this._folder_list_sidebar_visible = value;
+                update_folder_list_sidebar_visibility();
+            }
+        }
+    }
+
     // Widget descendants
     public FolderList.Tree folder_list { get; private set; default = new FolderList.Tree(); }
     public SearchBar search_bar { get; private set; }
@@ -400,7 +417,9 @@ public class Application.MainWindow :
     // Folds the folder list and the conversation list
     [GtkChild] private unowned Hdy.Leaflet inner_leaflet;
 
+    [GtkChild] private unowned Gtk.Box folder_box;
     [GtkChild] private unowned Gtk.ScrolledWindow folder_list_scrolled;
+    [GtkChild] private unowned Gtk.Separator folder_separator;
 
     [GtkChild] private unowned Gtk.Box conversation_list_box;
     [GtkChild] private unowned Gtk.Revealer conversation_list_actions_revealer;
@@ -940,7 +959,7 @@ public class Application.MainWindow :
         if (this.outer_leaflet.folded) {
             this.outer_leaflet.navigate(Hdy.NavigationDirection.BACK);
         }
-        if (this.inner_leaflet.folded) {
+        if (this.folder_list_sidebar_visible && this.inner_leaflet.folded) {
             this.inner_leaflet.navigate(Hdy.NavigationDirection.BACK);
         }
         this.application_headerbar.show_app_menu();
@@ -1236,6 +1255,11 @@ public class Application.MainWindow :
         config.bind(Configuration.WINDOW_WIDTH_KEY, this, "window-width");
         config.bind(Configuration.WINDOW_HEIGHT_KEY, this, "window-height");
         config.bind(Configuration.WINDOW_MAXIMIZE_KEY, this, "window-maximized");
+        config.bind(
+            Configuration.FOLDER_LIST_SIDEBAR_VISIBLE,
+            this,
+            "folder-list-sidebar-visible"
+        );
     }
 
     private void restore_saved_window_state() {
@@ -1759,6 +1783,23 @@ public class Application.MainWindow :
         );
     }
 
+    private void update_folder_list_sidebar_visibility() {
+        if (!this.folder_list_sidebar_visible &&
+            this.inner_leaflet.visible_child_name == FOLDER_LIST) {
+            this.inner_leaflet.set_visible_child_name(CONVERSATION_LIST);
+        }
+
+        this.folder_box.visible = this.folder_list_sidebar_visible;
+        this.folder_separator.visible = this.folder_list_sidebar_visible;
+
+        Gtk.Widget? focus = get_focus();
+        if (!this.folder_list_sidebar_visible &&
+            focus != null &&
+            (focus == this.folder_list || focus.is_ancestor(this.folder_list))) {
+            this.conversation_list_view.grab_focus();
+        }
+    }
+
     private void on_conversation_activated(Geary.App.Conversation activated, uint button) {
         if (button == 1) {
             bool folded = this.outer_leaflet.folded;
@@ -1969,9 +2010,10 @@ public class Application.MainWindow :
     private void navigate_next_pane() {
         var focus = get_focus();
         if (this.outer_leaflet.visible_child_name == INNER_LEAFLET) {
-            if (this.inner_leaflet.folded &&
-                this.inner_leaflet.visible_child_name == FOLDER_LIST ||
-                focus == this.folder_list) {
+            if (this.folder_list_sidebar_visible &&
+                ((this.inner_leaflet.folded &&
+                  this.inner_leaflet.visible_child_name == FOLDER_LIST) ||
+                 focus == this.folder_list)) {
                 this.inner_leaflet.navigate(Hdy.NavigationDirection.FORWARD);
                 focus = this.conversation_list_view;
             } else {
@@ -1988,15 +2030,19 @@ public class Application.MainWindow :
     private void focus_next_pane() {
         var focus = get_focus();
         if (focus != null) {
-            if (focus == this.folder_list ||
-                focus.is_ancestor(this.folder_list)) {
+            if (this.folder_list_sidebar_visible &&
+                (focus == this.folder_list || focus.is_ancestor(this.folder_list))) {
                 focus = this.conversation_list_view;
             } else if (focus == this.conversation_list_view ||
                        focus.is_ancestor(this.conversation_list_view)) {
                 focus = this.conversation_viewer.visible_child;
             } else if (focus == this.conversation_viewer ||
                        focus.is_ancestor(this.conversation_viewer)) {
-                focus = this.folder_list;
+                if (this.folder_list_sidebar_visible) {
+                    focus = this.folder_list;
+                } else {
+                    focus = this.conversation_list_view;
+                }
             }
         }
         focus_widget(focus);
@@ -2014,13 +2060,15 @@ public class Application.MainWindow :
         var focus = get_focus();
         if (this.outer_leaflet.visible_child_name == INNER_LEAFLET) {
             if (this.inner_leaflet.folded) {
-                if (this.inner_leaflet.visible_child_name == CONVERSATION_LIST) {
+                if (this.folder_list_sidebar_visible &&
+                    this.inner_leaflet.visible_child_name == CONVERSATION_LIST) {
                     this.inner_leaflet.navigate(Hdy.NavigationDirection.BACK);
                     focus = this.folder_list;
                 }
             } else {
-                 if (focus == this.conversation_list_view ||
-                     focus.is_ancestor(this.conversation_list_view))
+                 if (this.folder_list_sidebar_visible &&
+                     (focus == this.conversation_list_view ||
+                      focus.is_ancestor(this.conversation_list_view)))
                     focus = this.folder_list;
                 else
                     focus = this.conversation_list_view;
@@ -2035,12 +2083,16 @@ public class Application.MainWindow :
     private void focus_previous_pane() {
         var focus = get_focus();
         if (focus != null) {
-            if (focus == this.folder_list ||
-                focus.is_ancestor(this.folder_list)) {
+            if (this.folder_list_sidebar_visible &&
+                (focus == this.folder_list || focus.is_ancestor(this.folder_list))) {
                 focus = this.conversation_viewer.visible_child;
             } else if (focus == this.conversation_list_view ||
                        focus.is_ancestor(this.conversation_list_view)) {
-                focus = this.folder_list;
+                if (this.folder_list_sidebar_visible) {
+                    focus = this.folder_list;
+                } else {
+                    focus = this.conversation_viewer.visible_child;
+                }
             } else if (focus == this.conversation_viewer ||
                        focus.is_ancestor(this.conversation_viewer)) {
                 focus = this.conversation_list_view;
@@ -2184,6 +2236,11 @@ public class Application.MainWindow :
     [GtkCallback]
     private void on_inner_leaflet_changed() {
         update_close_button_position();
+        if (!this.folder_list_sidebar_visible &&
+            this.inner_leaflet.visible_child_name == FOLDER_LIST) {
+            this.inner_leaflet.set_visible_child_name(CONVERSATION_LIST);
+            return;
+        }
         if (this.inner_leaflet.folded) {
             // Ensure something useful gets the keyboard focus, given
             // GNOME/libhandy#179
@@ -2411,6 +2468,12 @@ public class Application.MainWindow :
 
     private void on_search_activated() {
         show_search_bar();
+    }
+
+    private void on_toggle_folder_list_sidebar() {
+        bool visible = !this.folder_list_sidebar_visible;
+        this.folder_list_sidebar_visible = visible;
+        this.application.config.folder_list_sidebar_visible = visible;
     }
 
     private void on_zoom(SimpleAction action, Variant? parameter) {
