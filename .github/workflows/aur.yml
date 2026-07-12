@@ -122,23 +122,26 @@ jobs:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
         run: |
           test -n "${AUR_SSH_KEY}"
-          install -d -m 0700 ~/.ssh
-          printf '%s\n' "${AUR_SSH_KEY}" > ~/.ssh/aur
-          chmod 0600 ~/.ssh/aur
-          ssh-keyscan -t ed25519 aur.archlinux.org > ~/.ssh/known_hosts.new
-          ssh-keygen -lf ~/.ssh/known_hosts.new | grep -F 'SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4'
-          mv ~/.ssh/known_hosts.new ~/.ssh/known_hosts
-          cat > ~/.ssh/config <<'EOF'
+          install -d -m 0700 "$HOME/.ssh"
+          printf '%s\n' "${AUR_SSH_KEY}" > "$HOME/.ssh/aur"
+          chmod 0600 "$HOME/.ssh/aur"
+          ssh-keyscan -t ed25519 aur.archlinux.org > "$HOME/.ssh/known_hosts.new"
+          ssh-keygen -lf "$HOME/.ssh/known_hosts.new" | grep -F 'SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4'
+          mv "$HOME/.ssh/known_hosts.new" "$HOME/.ssh/known_hosts"
+          chmod 0644 "$HOME/.ssh/known_hosts"
+          cat > "$HOME/.ssh/config" <<'EOF'
           Host aur.archlinux.org
             User aur
             IdentityFile ~/.ssh/aur
             IdentitiesOnly yes
+            UserKnownHostsFile ~/.ssh/known_hosts
             StrictHostKeyChecking yes
           EOF
-          chmod 0600 ~/.ssh/config
+          chmod 0600 "$HOME/.ssh/config"
 
       - name: Push source package
         run: |
+          export GIT_SSH_COMMAND="ssh -F $HOME/.ssh/config -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
           git clone ssh://aur@aur.archlinux.org/frank-geary.git /tmp/frank-geary-aur
           cp packaging/aur/frank-geary/PKGBUILD packaging/aur/frank-geary/.SRCINFO /tmp/frank-geary-aur/
           cd /tmp/frank-geary-aur
@@ -191,24 +194,27 @@ jobs:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
         run: |
           test -n "${AUR_SSH_KEY}"
-          install -d -m 0700 ~/.ssh
-          printf '%s\n' "${AUR_SSH_KEY}" > ~/.ssh/aur
-          chmod 0600 ~/.ssh/aur
-          ssh-keyscan -t ed25519 aur.archlinux.org > ~/.ssh/known_hosts.new
-          ssh-keygen -lf ~/.ssh/known_hosts.new | grep -F 'SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4'
-          mv ~/.ssh/known_hosts.new ~/.ssh/known_hosts
-          cat > ~/.ssh/config <<'EOF'
+          install -d -m 0700 "$HOME/.ssh"
+          printf '%s\n' "${AUR_SSH_KEY}" > "$HOME/.ssh/aur"
+          chmod 0600 "$HOME/.ssh/aur"
+          ssh-keyscan -t ed25519 aur.archlinux.org > "$HOME/.ssh/known_hosts.new"
+          ssh-keygen -lf "$HOME/.ssh/known_hosts.new" | grep -F 'SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4'
+          mv "$HOME/.ssh/known_hosts.new" "$HOME/.ssh/known_hosts"
+          chmod 0644 "$HOME/.ssh/known_hosts"
+          cat > "$HOME/.ssh/config" <<'EOF'
           Host aur.archlinux.org
             User aur
             IdentityFile ~/.ssh/aur
             IdentitiesOnly yes
+            UserKnownHostsFile ~/.ssh/known_hosts
             StrictHostKeyChecking yes
           EOF
-          chmod 0600 ~/.ssh/config
+          chmod 0600 "$HOME/.ssh/config"
 
       - name: Push binary package
         if: steps.binary_ready.outputs.ready == 'true'
         run: |
+          export GIT_SSH_COMMAND="ssh -F $HOME/.ssh/config -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
           git clone ssh://aur@aur.archlinux.org/frank-geary-bin.git /tmp/frank-geary-bin-aur
           cp packaging/aur/frank-geary-bin/PKGBUILD packaging/aur/frank-geary-bin/.SRCINFO /tmp/frank-geary-bin-aur/
           cd /tmp/frank-geary-bin-aur
