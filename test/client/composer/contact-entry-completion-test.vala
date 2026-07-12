@@ -12,6 +12,40 @@ public class Composer.ContactEntryCompletionTest : TestCase {
         base("Composer.ContactEntryCompletionTest");
         add_test("completion_visibility", completion_visibility);
         add_test("completion_address_filter", completion_address_filter);
+        add_test("suggestion_navigation", suggestion_navigation);
+    }
+
+    public void suggestion_navigation() throws Error {
+        // Down wraps from the last suggestion back to the first
+        assert_equal<int?>(
+            ContactEntryCompletion.next_suggestion_index(0, 3), 1
+        );
+        assert_equal<int?>(
+            ContactEntryCompletion.next_suggestion_index(1, 3), 2
+        );
+        assert_equal<int?>(
+            ContactEntryCompletion.next_suggestion_index(2, 3), 0
+        );
+
+        // Up wraps from the first suggestion to the last, and treats
+        // "no selection" (-1) like the first row
+        assert_equal<int?>(
+            ContactEntryCompletion.previous_suggestion_index(0, 3), 2
+        );
+        assert_equal<int?>(
+            ContactEntryCompletion.previous_suggestion_index(1, 3), 0
+        );
+        assert_equal<int?>(
+            ContactEntryCompletion.previous_suggestion_index(-1, 3), 2
+        );
+
+        // Empty suggestion lists never yield a valid index
+        assert_equal<int?>(
+            ContactEntryCompletion.next_suggestion_index(0, 0), -1
+        );
+        assert_equal<int?>(
+            ContactEntryCompletion.previous_suggestion_index(0, 0), -1
+        );
     }
 
     public void completion_visibility() throws Error {
