@@ -5,6 +5,7 @@ SNAPSHOT_DATE=${SNAPSHOT_DATE:-2017/02/01}
 VERSION=${VERSION:-0.11.2_frank.1}
 ASSET_NAME=${ASSET_NAME:-frank-geary-${VERSION}-x86_64.tar.zst}
 ARCH=${ARCH:-x86_64}
+GSD_SCHEMA_PKG_URL=${GSD_SCHEMA_PKG_URL:-https://archive.archlinux.org/packages/g/gnome-settings-daemon/gnome-settings-daemon-3.22.1-1-x86_64.pkg.tar.xz}
 
 if [[ $# -ne 1 ]]; then
   printf 'Usage: %s WORKDIR\n' "$0" >&2
@@ -118,6 +119,11 @@ fi
 if compgen -G "${STAGING}/usr/share/glib-2.0/schemas/*.xml" >/dev/null; then
   cp -a "${STAGING}"/usr/share/glib-2.0/schemas/*.xml "${STAGING}/opt/frank-geary/share/glib-2.0/schemas/"
 fi
+gsd_schema_tmp=$(mktemp -d "${WORKDIR}/gnome-settings-daemon-schemas.XXXXXX")
+curl -L --fail --retry 5 -o "${gsd_schema_tmp}/gnome-settings-daemon.pkg.tar.xz" "${GSD_SCHEMA_PKG_URL}"
+tar -xf "${gsd_schema_tmp}/gnome-settings-daemon.pkg.tar.xz" -C "${gsd_schema_tmp}" 'usr/share/glib-2.0/schemas'
+cp -a "${gsd_schema_tmp}"/usr/share/glib-2.0/schemas/*.xml "${STAGING}/opt/frank-geary/share/glib-2.0/schemas/"
+rm -rf "${gsd_schema_tmp}"
 run_root chroot "${ROOTFS}" /usr/bin/env -i \
   LD_LIBRARY_PATH=/pkgroot/opt/frank-geary/lib \
   PATH=/usr/bin \

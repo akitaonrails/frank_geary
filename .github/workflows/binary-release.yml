@@ -24,7 +24,7 @@ jobs:
     container: archlinux:base-devel
     steps:
       - name: Prepare build container
-        run: pacman -Syu --noconfirm git pacman sudo tar zstd coreutils binutils github-cli
+        run: pacman -Syu --noconfirm git pacman sudo tar zstd coreutils binutils curl github-cli
 
       - name: Checkout
         uses: actions/checkout@v4
