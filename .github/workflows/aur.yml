@@ -64,7 +64,7 @@ jobs:
 
       - name: Configure SSH
         env:
-          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_KEY }}
         run: |
           test -n "${AUR_SSH_PRIVATE_KEY}"
           install -d -m 700 /tmp/aur-ssh
