@@ -16,7 +16,9 @@ ROOTFS=${WORKDIR}/rootfs
 SRC_COPY=${ROOTFS}/build/frank-geary-src
 STAGING=${ROOTFS}/pkgroot
 PACMAN_CONF=${WORKDIR}/pacman-ala.conf
+git config --global --add safe.directory "$(pwd)" 2>/dev/null || true
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+git config --global --add safe.directory "${REPO_ROOT}" 2>/dev/null || true
 GIT_COMMIT=$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null || printf 'unknown')
 
 run_root() {
