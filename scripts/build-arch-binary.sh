@@ -54,7 +54,7 @@ PACKAGES=(
   gcc make binutils pkg-config fakeroot patch
   git cmake intltool vala desktop-file-utils
   gtk3 libsoup libgee libnotify libcanberra sqlite gmime libsecret libxml2
-  gcr webkitgtk enchant gobject-introspection zstd gettext mesa-libgl
+  gcr webkitgtk enchant gobject-introspection zstd gettext mesa-libgl ttf-dejavu
 )
 
 for attempt in 1 2 3 4 5; do
@@ -91,7 +91,9 @@ install -d \
   "${STAGING}/opt/frank-geary/bin" \
   "${STAGING}/opt/frank-geary/lib" \
   "${STAGING}/opt/frank-geary/lib/gio/modules" \
+  "${STAGING}/opt/frank-geary/etc/fonts" \
   "${STAGING}/opt/frank-geary/share/glib-2.0/schemas" \
+  "${STAGING}/opt/frank-geary/share/fonts" \
   "${STAGING}/usr/bin"
 if [[ ! -x ${STAGING}/usr/bin/geary ]]; then
   printf 'Expected installed binary was not found at %s\n' "${STAGING}/usr/bin/geary" >&2
@@ -102,6 +104,8 @@ cat >"${STAGING}/usr/bin/geary" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 export LD_LIBRARY_PATH="/opt/frank-geary/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+export FONTCONFIG_FILE="/opt/frank-geary/etc/fonts/fonts.conf"
+export FONTCONFIG_PATH="/opt/frank-geary/etc/fonts"
 export GIO_MODULE_DIR="/opt/frank-geary/lib/gio/modules"
 export GSETTINGS_SCHEMA_DIR="/opt/frank-geary/share/glib-2.0/schemas"
 export XDG_DATA_DIRS="/opt/frank-geary/share:/usr/local/share:/usr/share${XDG_DATA_DIRS:+:${XDG_DATA_DIRS}}"
@@ -109,6 +113,37 @@ exec /opt/frank-geary/bin/geary "$@"
 EOF
 chmod 0755 "${STAGING}/usr/bin/geary"
 ln -s geary "${STAGING}/usr/bin/frank-geary"
+
+if [[ -d ${ROOTFS}/usr/share/fonts ]]; then
+  cp -a "${ROOTFS}/usr/share/fonts/." "${STAGING}/opt/frank-geary/share/fonts/"
+fi
+cat >"${STAGING}/opt/frank-geary/etc/fonts/fonts.conf" <<'EOF'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <dir>/opt/frank-geary/share/fonts</dir>
+  <dir>/usr/share/fonts</dir>
+  <cachedir prefix="xdg">fontconfig</cachedir>
+  <alias>
+    <family>sans-serif</family>
+    <prefer>
+      <family>DejaVu Sans</family>
+    </prefer>
+  </alias>
+  <alias>
+    <family>serif</family>
+    <prefer>
+      <family>DejaVu Serif</family>
+    </prefer>
+  </alias>
+  <alias>
+    <family>monospace</family>
+    <prefer>
+      <family>DejaVu Sans Mono</family>
+    </prefer>
+  </alias>
+</fontconfig>
+EOF
 
 if compgen -G "${ROOTFS}/usr/lib/gio/modules/*.so" >/dev/null; then
   cp -a "${ROOTFS}"/usr/lib/gio/modules/*.so "${STAGING}/opt/frank-geary/lib/gio/modules/"
