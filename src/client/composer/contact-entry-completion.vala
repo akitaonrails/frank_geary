@@ -13,6 +13,9 @@ public class ContactEntryCompletion : Gtk.EntryCompletion, Geary.BaseInterface {
     private const Geary.Contact.Importance VISIBILITY_THRESHOLD =
         Geary.Contact.Importance.SEEN;
 
+    // Maximum number of suggestions to display.
+    private const int SEARCH_LIMIT = 20;
+
 
     public enum Column {
         CONTACT,
@@ -27,7 +30,10 @@ public class ContactEntryCompletion : Gtk.EntryCompletion, Geary.BaseInterface {
     }
 
 
-    private Application.ContactStore contacts;
+    // Stores to search, in priority order. The first is the sender's
+    // account; suggestions are drawn from all accounts and
+    // de-duplicated by address.
+    private Gee.List<Application.ContactStore> contact_stores;
 
     // Text between the start of the entry or of the previous email
     // address and the current position of the cursor, if any.
@@ -42,11 +48,26 @@ public class ContactEntryCompletion : Gtk.EntryCompletion, Geary.BaseInterface {
     private GLib.Cancellable? search_cancellable = null;
     private Gtk.TreeIter? last_iter = null;
 
+    // GtkEntryCompletion's popup is a positioned toplevel that some
+    // Wayland compositors (e.g. wlroots-based) never map, so
+    // suggestions are shown in a GtkPopover instead, which is a
+    // proper xdg_popup. See on_entry_key_press for its keyboard
+    // handling.
+    private Gtk.Popover? suggestion_popover = null;
+    private Gtk.ListBox? suggestion_list = null;
+    private int visible_matches = 0;
+    private int selected_index = -1;
 
-    public ContactEntryCompletion(Application.ContactStore contacts) {
+
+    public ContactEntryCompletion(
+        Gee.Collection<Application.ContactStore> contact_stores
+    ) {
         base_ref();
-        this.contacts = contacts;
+        this.contact_stores =
+            new Gee.ArrayList<Application.ContactStore>();
+        this.contact_stores.add_all(contact_stores);
         this.model = new_model();
+        this.popup_completion = false;
 
         // Always match all rows, since the model will only contain
         // matching addresses from the search query
@@ -91,10 +112,14 @@ public class ContactEntryCompletion : Gtk.EntryCompletion, Geary.BaseInterface {
             this.search_contacts.begin(completion_key, this.search_cancellable);
         } else {
             model.clear();
+            hide_suggestions();
         }
     }
 
     public void trigger_selection() {
+        if (accept_selected_suggestion()) {
+            return;
+        }
         if (this.last_iter != null) {
             insert_address_at_cursor(this.last_iter);
             this.last_iter = null;
@@ -103,6 +128,17 @@ public class ContactEntryCompletion : Gtk.EntryCompletion, Geary.BaseInterface {
 
     internal static bool is_completion_visible(int highest_importance) {
         return highest_importance >= VISIBILITY_THRESHOLD;
+    }
+
+    internal static int next_suggestion_index(int current, int count) {
+        return (count <= 0) ? -1 : (current + 1) % count;
+    }
+
+    internal static int previous_suggestion_index(int current, int count) {
+        if (count <= 0) {
+            return -1;
+        }
+        return (current <= 0) ? count - 1 : current - 1;
     }
 
     internal static bool is_completion_address(string email) {
@@ -243,14 +279,23 @@ public class ContactEntryCompletion : Gtk.EntryCompletion, Geary.BaseInterface {
 
     private async void search_contacts(string query,
                                        GLib.Cancellable? cancellable) {
-        Gee.Collection<Application.Contact>? results = null;
+        Gee.List<Application.Contact> results =
+            new Gee.ArrayList<Application.Contact>();
         try {
-            results = yield this.contacts.search(
-                query,
-                VISIBILITY_THRESHOLD,
-                20,
-                cancellable
-            );
+            foreach (Application.ContactStore contacts
+                     in this.contact_stores) {
+                results.add_all(
+                    yield contacts.search(
+                        query,
+                        VISIBILITY_THRESHOLD,
+                        SEARCH_LIMIT,
+                        cancellable
+                    )
+                );
+                if (results.size >= SEARCH_LIMIT) {
+                    break;
+                }
+            }
         } catch (GLib.IOError.CANCELLED err) {
             // All good
         } catch (GLib.Error err) {
@@ -259,19 +304,192 @@ public class ContactEntryCompletion : Gtk.EntryCompletion, Geary.BaseInterface {
 
         if (!cancellable.is_cancelled()) {
             Gtk.ListStore model = new_model();
+            Gee.Set<string> seen = new Gee.HashSet<string>();
+            int rows = 0;
             foreach (Application.Contact contact in results) {
+                if (rows >= SEARCH_LIMIT) {
+                    break;
+                }
                 foreach (Geary.RFC822.MailboxAddress addr
                           in contact.email_addresses) {
-                    if (is_completion_address(addr.address)) {
+                    if (is_completion_address(addr.address) &&
+                        seen.add(addr.address.normalize().casefold())) {
                         Gtk.TreeIter iter;
                         model.append(out iter);
                         model.set(iter, Column.CONTACT, contact);
                         model.set(iter, Column.MAILBOX, addr);
+                        rows++;
+                        if (rows >= SEARCH_LIMIT) {
+                            break;
+                        }
                     }
                 }
             }
             this.model = model;
-            complete();
+            show_suggestions();
+        }
+    }
+
+    private void ensure_popover() {
+        if (this.suggestion_popover != null) {
+            return;
+        }
+        Gtk.Entry? entry = get_entry() as Gtk.Entry;
+        if (entry == null) {
+            return;
+        }
+
+        Gtk.Popover popover = new Gtk.Popover(entry);
+        popover.position = Gtk.PositionType.BOTTOM;
+        popover.modal = false;
+        popover.can_focus = false;
+
+        Gtk.ListBox list = new Gtk.ListBox();
+        list.can_focus = false;
+        list.selection_mode = Gtk.SelectionMode.SINGLE;
+        list.row_activated.connect(on_suggestion_row_activated);
+        popover.add(list);
+
+        this.suggestion_popover = popover;
+        this.suggestion_list = list;
+
+        entry.key_press_event.connect(on_entry_key_press);
+        entry.focus_out_event.connect(() => {
+                hide_suggestions();
+                return Gdk.EVENT_PROPAGATE;
+            });
+    }
+
+    private void show_suggestions() {
+        ensure_popover();
+        Gtk.Entry? entry = get_entry() as Gtk.Entry;
+        if (this.suggestion_popover == null || entry == null) {
+            return;
+        }
+
+        foreach (Gtk.Widget child in this.suggestion_list.get_children()) {
+            child.destroy();
+        }
+
+        int rows = 0;
+        Gtk.TreeIter iter;
+        bool valid = this.model.get_iter_first(out iter);
+        while (valid) {
+            GLib.Value value;
+            this.model.get_value(iter, Column.MAILBOX, out value);
+            Geary.RFC822.MailboxAddress? addr =
+                value.get_object() as Geary.RFC822.MailboxAddress;
+            if (addr != null) {
+                Gtk.Label label = new Gtk.Label(null);
+                label.set_markup(match_prefix_contact(addr));
+                label.can_focus = false;
+                label.xalign = 0.0f;
+                label.ellipsize = Pango.EllipsizeMode.END;
+                label.margin_start = 8;
+                label.margin_end = 8;
+                label.margin_top = 4;
+                label.margin_bottom = 4;
+
+                Gtk.ListBoxRow row = new Gtk.ListBoxRow();
+                row.can_focus = false;
+                row.add(label);
+                this.suggestion_list.add(row);
+                rows++;
+            }
+            valid = this.model.iter_next(ref iter);
+        }
+
+        this.visible_matches = rows;
+        // Only pop up in response to the user actually typing,
+        // never when the entry is filled programmatically.
+        if (rows > 0 && entry.is_focus) {
+            this.selected_index = 0;
+            this.suggestion_list.select_row(
+                this.suggestion_list.get_row_at_index(0)
+            );
+            int cursor = entry.get_position();
+            this.suggestion_popover.show_all();
+            entry.grab_focus();
+            entry.set_position(cursor);
+        } else {
+            hide_suggestions();
+        }
+    }
+
+    private void hide_suggestions() {
+        if (this.suggestion_popover != null) {
+            this.suggestion_popover.hide();
+        }
+        this.visible_matches = 0;
+        this.selected_index = -1;
+    }
+
+    private bool suggestions_visible() {
+        return (
+            this.suggestion_popover != null &&
+            this.suggestion_popover.get_visible() &&
+            this.visible_matches > 0
+        );
+    }
+
+    private bool accept_selected_suggestion() {
+        bool accepted = false;
+        if (suggestions_visible()) {
+            int index = int.max(this.selected_index, 0);
+            Gtk.TreeIter iter;
+            if (this.model.get_iter_from_string(out iter, index.to_string())) {
+                insert_address_at_cursor(iter);
+                accepted = true;
+            }
+            hide_suggestions();
+        }
+        return accepted;
+    }
+
+    private void select_suggestion(int index) {
+        this.selected_index = index;
+        this.suggestion_list.select_row(
+            this.suggestion_list.get_row_at_index(index)
+        );
+    }
+
+    private void on_suggestion_row_activated(Gtk.ListBoxRow row) {
+        this.selected_index = row.get_index();
+        accept_selected_suggestion();
+    }
+
+    private bool on_entry_key_press(Gtk.Widget widget, Gdk.EventKey event) {
+        if (!suggestions_visible()) {
+            return Gdk.EVENT_PROPAGATE;
+        }
+        switch (event.keyval) {
+        case Gdk.Key.Escape:
+            hide_suggestions();
+            return Gdk.EVENT_STOP;
+
+        case Gdk.Key.Return:
+        case Gdk.Key.KP_Enter:
+            accept_selected_suggestion();
+            return Gdk.EVENT_STOP;
+
+        case Gdk.Key.Down:
+            select_suggestion(
+                next_suggestion_index(
+                    this.selected_index, this.visible_matches
+                )
+            );
+            return Gdk.EVENT_STOP;
+
+        case Gdk.Key.Up:
+            select_suggestion(
+                previous_suggestion_index(
+                    this.selected_index, this.visible_matches
+                )
+            );
+            return Gdk.EVENT_STOP;
+
+        default:
+            return Gdk.EVENT_PROPAGATE;
         }
     }
 
