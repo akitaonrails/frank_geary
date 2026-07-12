@@ -86,7 +86,12 @@ run_root chroot "${ROOTFS}" /usr/bin/env -i \
     -DTRANSLATE_HELP=OFF \
     -DDISABLE_CONTRACT=ON && make -j\$(nproc) && DESTDIR=/pkgroot make install"
 
-install -d "${STAGING}/opt/frank-geary/bin" "${STAGING}/opt/frank-geary/lib" "${STAGING}/usr/bin"
+install -d \
+  "${STAGING}/opt/frank-geary/bin" \
+  "${STAGING}/opt/frank-geary/lib" \
+  "${STAGING}/opt/frank-geary/lib/gio/modules" \
+  "${STAGING}/opt/frank-geary/share/glib-2.0/schemas" \
+  "${STAGING}/usr/bin"
 if [[ ! -x ${STAGING}/usr/bin/geary ]]; then
   printf 'Expected installed binary was not found at %s\n' "${STAGING}/usr/bin/geary" >&2
   exit 1
@@ -96,10 +101,27 @@ cat >"${STAGING}/usr/bin/geary" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 export LD_LIBRARY_PATH="/opt/frank-geary/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+export GIO_MODULE_DIR="/opt/frank-geary/lib/gio/modules"
+export GSETTINGS_SCHEMA_DIR="/opt/frank-geary/share/glib-2.0/schemas"
+export XDG_DATA_DIRS="/opt/frank-geary/share:/usr/local/share:/usr/share${XDG_DATA_DIRS:+:${XDG_DATA_DIRS}}"
 exec /opt/frank-geary/bin/geary "$@"
 EOF
 chmod 0755 "${STAGING}/usr/bin/geary"
 ln -s geary "${STAGING}/usr/bin/frank-geary"
+
+if compgen -G "${ROOTFS}/usr/lib/gio/modules/*.so" >/dev/null; then
+  cp -a "${ROOTFS}"/usr/lib/gio/modules/*.so "${STAGING}/opt/frank-geary/lib/gio/modules/"
+fi
+if compgen -G "${ROOTFS}/usr/share/glib-2.0/schemas/*.xml" >/dev/null; then
+  cp -a "${ROOTFS}"/usr/share/glib-2.0/schemas/*.xml "${STAGING}/opt/frank-geary/share/glib-2.0/schemas/"
+fi
+if compgen -G "${STAGING}/usr/share/glib-2.0/schemas/*.xml" >/dev/null; then
+  cp -a "${STAGING}"/usr/share/glib-2.0/schemas/*.xml "${STAGING}/opt/frank-geary/share/glib-2.0/schemas/"
+fi
+run_root chroot "${ROOTFS}" /usr/bin/env -i \
+  LD_LIBRARY_PATH=/pkgroot/opt/frank-geary/lib \
+  PATH=/usr/bin \
+  /usr/bin/glib-compile-schemas /pkgroot/opt/frank-geary/share/glib-2.0/schemas
 
 is_core_lib() {
   case "$(basename "$1")" in
@@ -137,6 +159,11 @@ ldd_paths() {
 }
 
 queue=(/pkgroot/opt/frank-geary/bin/geary)
+if compgen -G "${ROOTFS}/usr/lib/gio/modules/*.so" >/dev/null; then
+  for module in "${ROOTFS}"/usr/lib/gio/modules/*.so; do
+    queue+=("/usr/lib/gio/modules/$(basename "${module}")")
+  done
+fi
 seen=' '
 while [[ ${#queue[@]} -gt 0 ]]; do
   item=${queue[0]}
