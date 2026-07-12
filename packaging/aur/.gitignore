@@ -1,0 +1,15 @@
+src/
+pkg/
+*.pkg.tar*
+*.log
+*.log.*
+*.tar
+*.tar.*
+*.zip
+*.AppImage
+*.deb
+*.rpm
+*.zst
+*.xz
+*.gz
+*.sig

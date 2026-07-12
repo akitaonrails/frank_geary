@@ -10,6 +10,7 @@ srcdir=$(cd $(dirname $0) && pwd)
 DEFAULT_PREFIX="/usr/local"
 
 PREFIX=$DEFAULT_PREFIX
+CMDLINE="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
 configure_help() {
     cat <<- EOT

@@ -7,7 +7,7 @@
 public class ContactListStore : Gtk.ListStore {
 
     // Minimum visibility for the contact to appear in autocompletion.
-    private const Geary.ContactImportance CONTACT_VISIBILITY_THRESHOLD = Geary.ContactImportance.TO_TO;
+    private const Geary.ContactImportance CONTACT_VISIBILITY_THRESHOLD = Geary.ContactImportance.CC_TO;
 
     // Batch size for loading contacts asynchronously
     private uint LOAD_BATCH_SIZE = 4096;
@@ -49,6 +49,14 @@ public class ContactListStore : Gtk.ListStore {
 
         // Finally, order by email.
         return strcmp(acontact.normalized_email, bcontact.normalized_email);
+    }
+
+    private static bool is_contact_eligible(Geary.Contact contact) {
+        if (!ContactAutocompletePolicy.is_importance_visible(
+            (int) contact.highest_importance, (int) CONTACT_VISIBILITY_THRESHOLD))
+            return false;
+
+        return !ContactAutocompletePolicy.is_auto_generated_address(contact.email);
     }
 
 
@@ -129,7 +137,7 @@ public class ContactListStore : Gtk.ListStore {
     }
 
     private inline void add_contact(Geary.Contact contact) {
-        if (contact.highest_importance >= CONTACT_VISIBILITY_THRESHOLD) {
+        if (is_contact_eligible(contact)) {
             string full_address = contact.get_rfc822_address().to_rfc822_string();
             Gtk.TreeIter iter;
             append(out iter);
@@ -142,19 +150,27 @@ public class ContactListStore : Gtk.ListStore {
 
     private void update_contact(Geary.Contact updated_contact) {
         Gtk.TreeIter iter;
-        if (!get_iter_first(out iter))
+        if (!get_iter_first(out iter)) {
+            add_contact(updated_contact);
             return;
+        }
         
         do {
             if (get_contact(iter) != updated_contact)
                 continue;
             
-            Gtk.TreePath? path = get_path(iter);
-            if (path != null)
-                row_changed(path, iter);
+            if (is_contact_eligible(updated_contact)) {
+                Gtk.TreePath? path = get_path(iter);
+                if (path != null)
+                    row_changed(path, iter);
+            } else {
+                remove(ref iter);
+            }
             
             return;
         } while (iter_next(ref iter));
+
+        add_contact(updated_contact);
     }
     
     private void on_contact_added(Geary.Contact contact) {
@@ -166,4 +182,3 @@ public class ContactListStore : Gtk.ListStore {
     }
 
 }
-

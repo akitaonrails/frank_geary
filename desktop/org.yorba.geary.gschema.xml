@@ -43,7 +43,13 @@
         <summary>orientation of the folder list pane</summary>
         <description>True if the folder list Paned is in the horizontal orientation.</description>
     </key>
-    
+
+    <key name="folder-list-sidebar-visible" type="b">
+        <default>true</default>
+        <summary>folder sidebar visibility</summary>
+        <description>True if the folder sidebar is visible.</description>
+    </key>
+
     <key name="messages-pane-position" type="i">
         <default>250</default>
         <summary>position of message list pane</summary>

@@ -351,6 +351,7 @@ client/composer/composer-embed.vala
 client/composer/composer-headerbar.vala
 client/composer/composer-widget.vala
 client/composer/composer-window.vala
+client/composer/contact-autocomplete-policy.vala
 client/composer/contact-entry-completion.vala
 client/composer/contact-list-store.vala
 client/composer/email-entry.vala

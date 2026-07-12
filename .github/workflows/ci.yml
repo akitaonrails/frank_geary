@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lightweight-tests:
+    name: Lightweight tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install test tools
+        run: sudo apt-get update && sudo apt-get install -y valac libglib2.0-bin git
+
+      - name: Run local tests
+        run: bash tests/run-local.sh
+
+      - name: Check committed whitespace
+        run: git diff-tree --check --no-commit-id --root -r HEAD
+
+  legacy-build-probe:
+    name: Legacy build dependency probe
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install baseline build tools
+        run: sudo apt-get update && sudo apt-get install -y cmake intltool valac desktop-file-utils pkg-config
+
+      - name: Probe configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -DNO_FATAL_WARNINGS=ON \
+            -DDESKTOP_VALIDATE=OFF \
+            -DTRANSLATE_HELP=OFF \
+            -DDISABLE_CONTRACT=ON
+        # This old Geary tree still depends on WebKitGTK 3.0, GMime 2.6,
+        # and Enchant 1.x compatibility packages. The probe is allowed to
+        # fail until those dependencies are provided or modernized.

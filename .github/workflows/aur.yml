@@ -1,0 +1,154 @@
+name: AUR packaging
+
+on:
+  push:
+    paths:
+      - 'packaging/aur/**'
+      - '.github/workflows/aur.yml'
+  pull_request:
+    paths:
+      - 'packaging/aur/**'
+      - '.github/workflows/aur.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Push PKGBUILD/.SRCINFO to AUR repositories'
+        required: true
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aur-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate AUR recipes
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [frank-geary, frank-geary-bin]
+    steps:
+      - name: Prepare Arch container
+        run: |
+          pacman -Syu --noconfirm git namcap openssh sudo
+          useradd -m builder
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' >/etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Allow non-root makepkg writes
+        run: chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Validate .SRCINFO is current
+        working-directory: packaging/aur/${{ matrix.package }}
+        run: |
+          sudo -u builder makepkg --printsrcinfo > .SRCINFO.generated
+          diff -u .SRCINFO .SRCINFO.generated
+
+      - name: Verify sources
+        working-directory: packaging/aur/${{ matrix.package }}
+        run: |
+          if grep -q "sha256sums=('SKIP')" PKGBUILD; then
+            printf 'Skipping source verification while release checksum placeholder is present.\n'
+            exit 0
+          fi
+          sudo -u builder makepkg --verifysource --noconfirm
+
+      - name: Run namcap on PKGBUILD
+        working-directory: packaging/aur/${{ matrix.package }}
+        run: namcap PKGBUILD
+
+      - name: Best-effort package build
+        if: ${{ false }}
+        working-directory: packaging/aur/${{ matrix.package }}
+        run: sudo -u builder makepkg --syncdeps --noconfirm --cleanbuild
+        # Intentionally gated off: this legacy Geary-derived tree depends on
+        # old WebKitGTK/GMime compatibility packages that may not exist in a
+        # current Arch container. Enable after dependencies are modernized or
+        # pinned compatibility packages are available.
+
+  publish:
+    name: Publish to AUR
+    needs: validate
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    if: >-
+      ${{
+        github.event_name == 'release' ||
+        (github.event_name == 'workflow_dispatch' && inputs.publish == 'true')
+      }}
+    steps:
+      - name: Prepare Arch container
+        run: pacman -Syu --noconfirm git openssh sudo
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Refuse placeholder package metadata
+        run: |
+          if grep -R "sha256sums=('SKIP')" packaging/aur/*/PKGBUILD; then
+            printf 'AUR publishing is blocked until release checksums replace SKIP.\n' >&2
+            exit 1
+          fi
+          if grep -R "Release-time TODO" packaging/aur/*/PKGBUILD; then
+            printf 'AUR publishing is blocked while release-time TODOs remain.\n' >&2
+            exit 1
+          fi
+          source_tag=$(sed -n "s/^_tag='\(.*\)'$/\1/p" packaging/aur/frank-geary/PKGBUILD)
+          bin_tag=$(sed -n "s/^_tag='\(.*\)'$/\1/p" packaging/aur/frank-geary-bin/PKGBUILD)
+          test "${source_tag}" = "${bin_tag}"
+          if test "${GITHUB_EVENT_NAME}" = "release" && test "${source_tag}" != "${GITHUB_REF_NAME}"; then
+            printf 'AUR publishing is blocked: release ref %s does not match PKGBUILD _tag %s.\n' "${GITHUB_REF_NAME}" "${source_tag}" >&2
+            exit 1
+          fi
+
+      - name: Configure AUR SSH
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+        run: |
+          test -n "${AUR_SSH_KEY}"
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "${AUR_SSH_KEY}" > ~/.ssh/aur
+          chmod 0600 ~/.ssh/aur
+          ssh-keyscan -t ed25519 aur.archlinux.org > ~/.ssh/known_hosts.new
+          ssh-keygen -lf ~/.ssh/known_hosts.new | grep -F 'SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4'
+          mv ~/.ssh/known_hosts.new ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host aur.archlinux.org
+            User aur
+            IdentityFile ~/.ssh/aur
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+          chmod 0600 ~/.ssh/config
+
+      - name: Push source package
+        run: |
+          git clone ssh://aur@aur.archlinux.org/frank-geary.git /tmp/frank-geary-aur
+          cp packaging/aur/frank-geary/PKGBUILD packaging/aur/frank-geary/.SRCINFO /tmp/frank-geary-aur/
+          cd /tmp/frank-geary-aur
+          git add PKGBUILD .SRCINFO
+          git diff --cached --quiet && exit 0
+          git -c user.name='FrankGeary CI' -c user.email='ci@users.noreply.github.com' commit -m 'Update frank-geary package'
+          git push origin master
+
+      - name: Push binary package
+        run: |
+          git clone ssh://aur@aur.archlinux.org/frank-geary-bin.git /tmp/frank-geary-bin-aur
+          cp packaging/aur/frank-geary-bin/PKGBUILD packaging/aur/frank-geary-bin/.SRCINFO /tmp/frank-geary-bin-aur/
+          cd /tmp/frank-geary-bin-aur
+          git add PKGBUILD .SRCINFO
+          git diff --cached --quiet && exit 0
+          git -c user.name='FrankGeary CI' -c user.email='ci@users.noreply.github.com' commit -m 'Update frank-geary-bin package'
+          git push origin master

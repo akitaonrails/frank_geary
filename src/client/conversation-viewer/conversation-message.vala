@@ -137,6 +137,16 @@ public class ConversationMessage : Gtk.Grid {
         }
     }
 
+    private class ContextImage : Geary.BaseObject {
+        public string? filename;
+        public Geary.Memory.Buffer buffer;
+
+        public ContextImage(string? filename, Geary.Memory.Buffer buffer) {
+            this.filename = filename;
+            this.buffer = buffer;
+        }
+    }
+
     private const string[] INLINE_MIME_TYPES = {
         "image/png",
         "image/gif",
@@ -157,6 +167,7 @@ public class ConversationMessage : Gtk.Grid {
     private const float QUOTE_SIZE_THRESHOLD = 2.0f;
 
     private const string ACTION_COPY_EMAIL = "copy_email";
+    private const string ACTION_COPY_IMAGE = "copy_image";
     private const string ACTION_COPY_LINK = "copy_link";
     private const string ACTION_COPY_SELECTION = "copy_selection";
     private const string ACTION_OPEN_INSPECTOR = "open_inspector";
@@ -247,6 +258,9 @@ public class ConversationMessage : Gtk.Grid {
     // Last known DOM element under the context menu
     private WebKit.DOM.HTMLElement? context_menu_element = null;
 
+    // Last supported image under the context menu
+    private ContextImage? context_menu_image_state = null;
+
     // Contains the current mouse-over'ed link URL, if any
     private string? hover_url = null;
 
@@ -305,6 +319,7 @@ public class ConversationMessage : Gtk.Grid {
 
         add_action(ACTION_COPY_EMAIL, true, VariantType.STRING)
             .activate.connect(on_copy_email_address);
+        add_action(ACTION_COPY_IMAGE, false).activate.connect(on_copy_image);
         add_action(ACTION_COPY_LINK, true, VariantType.STRING)
             .activate.connect(on_copy_link);
         add_action(ACTION_COPY_SELECTION, false).activate.connect(() => {
@@ -318,9 +333,11 @@ public class ConversationMessage : Gtk.Grid {
             .activate.connect((param) => {
                 link_activated(param.get_string());
             });
-        add_action(ACTION_SAVE_IMAGE, true).activate.connect((param) => {
-                ReplacedImage? replaced_image = get_replaced_image();
-                save_image(replaced_image.filename, replaced_image.buffer);
+        add_action(ACTION_SAVE_IMAGE, false).activate.connect((param) => {
+                if (this.context_menu_image_state != null) {
+                    save_image(this.context_menu_image_state.filename,
+                               this.context_menu_image_state.buffer);
+                }
             });
         add_action(ACTION_SEARCH_FROM, true, VariantType.STRING)
             .activate.connect((param) => {
@@ -407,6 +424,7 @@ public class ConversationMessage : Gtk.Grid {
 
     public override void destroy() {
         this.context_menu_element = null;
+        this.context_menu_image_state = null;
         this.searchable_addresses.clear();
         base.destroy();
     }
@@ -1259,16 +1277,48 @@ public class ConversationMessage : Gtk.Grid {
         }
     }
 
-    private ReplacedImage? get_replaced_image() {
-        ReplacedImage? image = null;
-        string? replaced_id = this.context_menu_element.get_attribute(
-            "replaced-id"
-        );
-        this.context_menu_element = null;
+    private ContextImage? get_context_image(WebKit.DOM.HTMLElement element) {
+        string? replaced_id = element.get_attribute("replaced-id");
         if (!Geary.String.is_empty(replaced_id)) {
-            image = replaced_images.get(replaced_id);
+            ReplacedImage? image = replaced_images.get(replaced_id);
+            if (image != null)
+                return new ContextImage(image.filename, image.buffer);
         }
-        return image;
+
+        string? src = element.get_attribute("src");
+        if (!Geary.String.is_empty(src) && src.has_prefix("data:image/")) {
+            Geary.Memory.Buffer? buffer = null;
+            if (Util.DOM.disassemble_data_uri(src, out buffer) && buffer != null) {
+                string? filename = element.get_attribute("alt");
+                if (Geary.String.is_empty(filename))
+                    filename = null;
+                return new ContextImage(filename, buffer);
+            }
+        }
+
+        return null;
+    }
+
+    private Gdk.Pixbuf? load_context_image_pixbuf() {
+        Gdk.Pixbuf? pixbuf = null;
+        if (this.context_menu_image_state != null) {
+            try {
+                Gdk.PixbufLoader loader = new Gdk.PixbufLoader();
+                Geary.Memory.UnownedBytesBuffer? unowned_buffer =
+                    this.context_menu_image_state.buffer as Geary.Memory.UnownedBytesBuffer;
+                if (unowned_buffer != null)
+                    loader.write(unowned_buffer.to_unowned_uint8_array());
+                else
+                    loader.write(this.context_menu_image_state.buffer.get_uint8_array());
+                loader.close();
+                pixbuf = loader.get_pixbuf();
+                if (pixbuf != null)
+                    pixbuf = pixbuf.apply_embedded_orientation();
+            } catch (Error error) {
+                debug("Unable to copy image: %s", error.message);
+            }
+        }
+        return pixbuf;
     }
 
     private inline void set_revealer(Gtk.Revealer revealer,
@@ -1347,6 +1397,7 @@ public class ConversationMessage : Gtk.Grid {
                                       WebKit.DOM.Event event) {
         this.context_menu_element =
              event.get_target() as WebKit.DOM.HTMLElement;
+        this.context_menu_image_state = null;
         if (context_menu != null) {
             context_menu.detach();
         }
@@ -1366,9 +1417,12 @@ public class ConversationMessage : Gtk.Grid {
                 null, set_action_param_string(link_menu, this.hover_url)
             );
         }
-        if (this.context_menu_element.local_name.down() == "img") {
-            ReplacedImage image = get_replaced_image();
-            set_action_enabled(ACTION_SAVE_IMAGE, image != null);
+        if (this.context_menu_element != null &&
+            this.context_menu_element.local_name.down() == "img") {
+            this.context_menu_image_state = get_context_image(this.context_menu_element);
+            bool has_image = this.context_menu_image_state != null;
+            set_action_enabled(ACTION_COPY_IMAGE, has_image);
+            set_action_enabled(ACTION_SAVE_IMAGE, has_image);
             model.append_section(null, context_menu_image);
         }
         model.append_section(null, context_menu_main);
@@ -1474,6 +1528,15 @@ public class ConversationMessage : Gtk.Grid {
         Gtk.Clipboard clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD);
         clipboard.set_text(param.get_string(), -1);
         clipboard.store();
+    }
+
+    private void on_copy_image(Variant? param) {
+        Gdk.Pixbuf? pixbuf = load_context_image_pixbuf();
+        if (pixbuf != null) {
+            Gtk.Clipboard clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD);
+            clipboard.set_image(pixbuf);
+            clipboard.store();
+        }
     }
 
     private void on_copy_email_address(Variant? param) {

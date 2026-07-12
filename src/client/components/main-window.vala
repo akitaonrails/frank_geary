@@ -35,6 +35,8 @@ public class MainWindow : Gtk.ApplicationWindow {
     private Gtk.Box conversation_box;
     private Geary.AggregateProgressMonitor progress_monitor = new Geary.AggregateProgressMonitor();
     private Geary.ProgressMonitor? folder_progress = null;
+    private int folder_position_before_hide = -1;
+    private bool folder_pane_position_bound = false;
     
     public MainWindow(GearyApplication application) {
         Object(application: application);
@@ -80,6 +82,8 @@ public class MainWindow : Gtk.ApplicationWindow {
         focus_in_event.connect(on_focus_event);
         GearyApplication.instance.config.settings.changed[
             Configuration.FOLDER_LIST_PANE_HORIZONTAL_KEY].connect(on_change_orientation);
+        GearyApplication.instance.config.settings.changed[
+            Configuration.FOLDER_LIST_SIDEBAR_VISIBLE_KEY].connect(on_folder_sidebar_visible_changed);
         GearyApplication.instance.controller.notify[GearyController.PROP_CURRENT_CONVERSATION].
             connect(on_conversation_monitor_changed);
         GearyApplication.instance.controller.folder_selected.connect(on_folder_selected);
@@ -98,6 +102,7 @@ public class MainWindow : Gtk.ApplicationWindow {
         set_styling();
         create_layout();
         on_change_orientation();
+        update_folder_sidebar_visibility(false);
     }
 
     private bool on_delete_event() {
@@ -222,6 +227,15 @@ public class MainWindow : Gtk.ApplicationWindow {
     }
     
     private bool on_key_press_event(Gdk.EventKey event) {
+        Gdk.ModifierType modifiers = event.state & Gtk.accelerator_get_default_mod_mask();
+        if ((event.keyval == Gdk.Key.m || event.keyval == Gdk.Key.M) &&
+            modifiers == (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK) &&
+            can_toggle_folder_sidebar()) {
+            GearyApplication.instance.config.folder_list_sidebar_visible =
+                !GearyApplication.instance.config.folder_list_sidebar_visible;
+            return true;
+        }
+
         if ((event.keyval == Gdk.Key.Shift_L || event.keyval == Gdk.Key.Shift_R)
             && (event.state & Gdk.ModifierType.SHIFT_MASK) == 0 && !search_bar.search_entry_has_focus)
             on_shift_key(true);
@@ -229,6 +243,14 @@ public class MainWindow : Gtk.ApplicationWindow {
         // Check whether the focused widget wants to handle it, if not let the accelerators kick in
         // via the default handling
         return propagate_key_event(event);
+    }
+
+    private bool can_toggle_folder_sidebar() {
+        if (search_bar.search_entry_has_focus)
+            return false;
+
+        Gtk.Widget? focus = get_focus();
+        return focus == null || focus.get_ancestor(typeof(ComposerWidget)) == null;
     }
     
     private bool on_key_release_event(Gdk.EventKey event) {
@@ -323,7 +345,7 @@ public class MainWindow : Gtk.ApplicationWindow {
             initial = false;
         }
         
-        GLib.Settings.unbind(folder_paned, "position");
+        unbind_folder_pane_position();
         folder_paned.orientation = horizontal ? Gtk.Orientation.HORIZONTAL :
             Gtk.Orientation.VERTICAL;
         
@@ -339,10 +361,60 @@ public class MainWindow : Gtk.ApplicationWindow {
             conversation_box.pack_start(status_bar, false, false);
         }
         
+        bind_folder_pane_position();
+        update_folder_sidebar_visibility(false);
+    }
+
+    private void bind_folder_pane_position() {
+        if (this.folder_pane_position_bound)
+            GLib.Settings.unbind(folder_paned, "position");
+
         GearyApplication.instance.config.bind(
-            horizontal ? Configuration.FOLDER_LIST_PANE_POSITION_HORIZONTAL_KEY
+            GearyApplication.instance.config.folder_list_pane_horizontal
+            ? Configuration.FOLDER_LIST_PANE_POSITION_HORIZONTAL_KEY
             : Configuration.FOLDER_LIST_PANE_POSITION_VERTICAL_KEY,
             folder_paned, "position");
+        this.folder_pane_position_bound = true;
+    }
+
+    private void unbind_folder_pane_position() {
+        if (this.folder_pane_position_bound) {
+            GLib.Settings.unbind(folder_paned, "position");
+            this.folder_pane_position_bound = false;
+        }
+    }
+
+    private int get_saved_folder_pane_position() {
+        Configuration config = GearyApplication.instance.config;
+        return config.folder_list_pane_horizontal
+            ? config.folder_list_pane_position_horizontal
+            : config.folder_list_pane_position_vertical;
+    }
+
+    private void on_folder_sidebar_visible_changed() {
+        update_folder_sidebar_visibility(true);
+    }
+
+    private void update_folder_sidebar_visibility(bool preserve_position) {
+        bool visible = GearyApplication.instance.config.folder_list_sidebar_visible;
+        if (visible) {
+            unbind_folder_pane_position();
+            folder_box.show_all();
+            int position = this.folder_position_before_hide;
+            if (position < 0) {
+                position = get_saved_folder_pane_position();
+            }
+            if (position > 0) {
+                folder_paned.position = position;
+            }
+            bind_folder_pane_position();
+        } else {
+            if (preserve_position && folder_paned.position > 0) {
+                this.folder_position_before_hide = folder_paned.position;
+            }
+            unbind_folder_pane_position();
+            folder_box.hide();
+        }
     }
     
     private void update_headerbar() {
@@ -375,4 +447,3 @@ public class MainWindow : Gtk.ApplicationWindow {
             main_toolbar.folder = current_folder.get_display_name();
     }
 }
-
