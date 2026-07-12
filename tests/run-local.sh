@@ -7,6 +7,7 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 valac \
   --pkg glib-2.0 \
+  --directory "${TMP_DIR}" \
   -o "${TMP_DIR}/test-contact-autocomplete-policy" \
   "${ROOT_DIR}/src/client/composer/contact-autocomplete-policy.vala" \
   "${ROOT_DIR}/tests/test-contact-autocomplete-policy.vala"

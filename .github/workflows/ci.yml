@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Install test tools
         run: sudo apt-get update && sudo apt-get install -y valac libglib2.0-bin git
@@ -22,7 +24,7 @@ jobs:
         run: bash tests/run-local.sh
 
       - name: Check committed whitespace
-        run: git diff-tree --check --no-commit-id --root -r HEAD
+        run: git diff-tree --check --no-commit-id -r HEAD
 
   legacy-build-probe:
     name: Legacy build dependency probe
