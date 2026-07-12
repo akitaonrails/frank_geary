@@ -1,6 +1,6 @@
 pkgbase = frank-geary
 	pkgdesc = FrankGeary email client, a Geary fork with focused fixes
-	pkgver = 0.11.2_dev
+	pkgver = 0.11.2_frank.1
 	pkgrel = 1
 	url = https://github.com/akitaonrails/FrankGeary
 	arch = x86_64
@@ -27,7 +27,7 @@ pkgbase = frank-geary
 	optdepends = libunity: legacy Unity launcher integration, if available
 	provides = geary
 	conflicts = geary
-	source = frank-geary-0.11.2_dev.tar.gz::https://github.com/akitaonrails/FrankGeary/archive/refs/tags/0.11.2-dev.tar.gz
-	sha256sums = SKIP
+	source = frank-geary-0.11.2_frank.1.tar.gz::https://github.com/akitaonrails/FrankGeary/archive/refs/tags/v0.11.2-frank.1.tar.gz
+	sha256sums = 0299c2dc950dfc5e0b6769fc820b75e4888f4c13c0f854a8d2d48ecbd62f5c0f
 
 pkgname = frank-geary

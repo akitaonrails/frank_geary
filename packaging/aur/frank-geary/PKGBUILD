@@ -10,14 +10,9 @@
 # written, no AUR `-bin` providers were available for webkitgtk3, gmime-2.6, or
 # enchant-1; the dependency names below are virtual/compatibility targets so a
 # future `*-bin` package can satisfy them through `provides=...`.
-#
-# Release-time TODO:
-# - Replace sha256sums=('SKIP') with the checksum of the immutable GitHub
-#   release/source archive once releases are cut.
-# - Verify _tag matches the release tag naming convention.
 
 pkgname=frank-geary
-pkgver=0.11.2_dev
+pkgver=0.11.2_frank.1
 pkgrel=1
 pkgdesc='FrankGeary email client, a Geary fork with focused fixes'
 arch=('x86_64')
@@ -55,12 +50,13 @@ optdepends=(
 )
 provides=('geary')
 conflicts=('geary')
-_tag='0.11.2-dev'
+_tag='v0.11.2-frank.1'
+_srcdir='FrankGeary-0.11.2-frank.1'
 source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/refs/tags/${_tag}.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('0299c2dc950dfc5e0b6769fc820b75e4888f4c13c0f854a8d2d48ecbd62f5c0f')
 
 build() {
-  cd "FrankGeary-${_tag}"
+  cd "${_srcdir}"
   cmake -S . -B build \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
@@ -75,6 +71,6 @@ build() {
 }
 
 package() {
-  cd "FrankGeary-${_tag}"
+  cd "${_srcdir}"
   DESTDIR="${pkgdir}" cmake --install build
 }
