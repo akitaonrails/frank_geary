@@ -1,0 +1,59 @@
+name: Binary release asset
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing GitHub Release tag to upload to'
+        required: true
+        default: 'v0.11.2-frank.1'
+      upload:
+        description: 'Upload asset to the release'
+        required: true
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Arch x86_64 binary asset
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Prepare build container
+        run: pacman -Syu --noconfirm git pacman sudo tar zstd coreutils binutils github-cli
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build pinned ALA binary tree
+        run: bash scripts/build-arch-binary.sh "$RUNNER_TEMP/frank-geary-binary"
+
+      - name: Verify asset and checksum
+        id: asset
+        run: |
+          asset="$RUNNER_TEMP/frank-geary-binary/frank-geary-0.11.2_frank.1-x86_64.tar.zst"
+          test -s "$asset"
+          tar --zstd -tf "$asset" | grep -Fx './opt/frank-geary/BUILD-MANIFEST.txt'
+          sha256sum "$asset" | tee "$asset.sha256"
+          printf 'asset=%s\n' "$asset" >> "$GITHUB_OUTPUT"
+          printf 'sha256=%s\n' "$(cut -d' ' -f1 "$asset.sha256")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: frank-geary-binary-asset
+          path: |
+            ${{ steps.asset.outputs.asset }}
+            ${{ steps.asset.outputs.asset }}.sha256
+
+      - name: Upload to GitHub Release
+        if: inputs.upload == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.tag }}" "${{ steps.asset.outputs.asset }}" "${{ steps.asset.outputs.asset }}.sha256" --clobber

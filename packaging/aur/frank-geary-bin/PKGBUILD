@@ -5,18 +5,15 @@
 # are not stable distribution assets, and are unsuitable for AUR users.
 #
 # Release-time TODO:
-# - Replace _asset and sha256sums with the actual stable x86_64 release payload
-#   name and checksum after publishing a GitHub Release. The payload should be
-#   an install-tree archive, not a GitHub Actions artifact.
-# - Keep pkgver aligned with the binary release version.
+# - Replace sha256sums with the actual stable x86_64 release payload checksum
+#   after building and publishing the GitHub Release asset.
 #
-# Prefer binary compatibility providers when they exist. At the time this was
-# written, no AUR `-bin` providers were available for webkitgtk3, gmime-2.6, or
-# enchant-1; the dependency names below are virtual/compatibility targets so a
-# future `*-bin` package can satisfy them through `provides=...`.
+# Legacy ABI libraries for WebKitGTK 2.4 / webkitgtk-3.0, GMime 2.6, and
+# Enchant 1.x are bundled in the release asset from a pinned Arch Linux Archive
+# snapshot. Keep depends limited to current desktop integration/system packages.
 
 pkgname=frank-geary-bin
-pkgver=0.11.2_dev
+pkgver=0.11.2_frank.1
 pkgrel=1
 pkgdesc='FrankGeary email client, prebuilt stable release binary'
 arch=('x86_64')
@@ -24,27 +21,19 @@ url='https://github.com/akitaonrails/FrankGeary'
 license=('LGPL2.1')
 depends=(
   'desktop-file-utils'
-  # Compatibility package must provide pkg-config module enchant>=1.6.
-  'enchant-1'
   'gcr'
   'gtk3'
   'libcanberra'
-  'libgee'
   'libnotify'
   'libsecret'
   'libxml2'
-  'libsoup'
   'sqlite'
-  # Legacy runtime compatibility providers. The existing AUR `webkitgtk` source
-  # package provides webkitgtk3; use webkitgtk3 here so a future webkitgtk-bin
-  # provider can satisfy the dependency without editing FrankGeary.
-  'gmime-2.6'
-  'webkitgtk3'
+  'hicolor-icon-theme'
 )
 provides=('geary' 'frank-geary')
 conflicts=('geary' 'frank-geary')
-_tag='0.11.2-dev'
-_asset='frank-geary-0.11.2_dev-x86_64.tar.zst'
+_tag='v0.11.2-frank.1'
+_asset='frank-geary-0.11.2_frank.1-x86_64.tar.zst'
 source=("${_asset}::${url}/releases/download/${_tag}/${_asset}")
 noextract=("${_asset}")
 sha256sums=('SKIP')

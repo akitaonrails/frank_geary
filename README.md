@@ -24,7 +24,8 @@ profiles, settings, desktop files, schemas, translations, and migration safety.
 - Desktop notifications.
 - Wider composer autocomplete that includes contacts seen in CC/BCC contexts
   while filtering common no-reply addresses.
-- Message image context menu support for copying supported inline/data images.
+- Message image context menu support: right-click supported inline/data images
+  and choose **Copy Image** to place the image on the clipboard.
 - Manual folder sidebar visibility toggle with `Ctrl+Shift+M`.
 
 ## Screenshots
@@ -60,6 +61,13 @@ more room to the message list and reading pane on narrow windows.
 </tr>
 </table>
 
+### Copy Image from message images
+
+The old autocomplete module also exposed a **Copy Image** action. FrankGeary now
+implements that behavior natively in the message viewer: right-click a supported
+inline or data-backed image in a message and choose **Copy Image** to copy the
+decoded image to the desktop clipboard.
+
 > Screenshots come from the earlier standalone module prototypes. The behavior is
 > now implemented natively in this fork rather than injected through GTK modules.
 
@@ -79,9 +87,8 @@ Packaging scaffolding lives under `packaging/aur/`:
 - `frank-geary-bin`: binary package intended only for stable GitHub Release
   assets, not GitHub Actions workflow artifacts.
 
-Both package recipes currently contain release-time placeholders for source or
-asset URLs and checksums. They also document legacy dependency risk: this older
-Geary-derived code requires compatibility providers for WebKitGTK 2.4 /
-`webkitgtk-3.0`, GMime 2.6, and Enchant 1.x on modern Arch systems. The AUR
-recipes use virtual compatibility dependency names so binary providers can satisfy
-them when available.
+The `frank-geary` source recipe is published from stable GitHub Release source
+archives. The `frank-geary-bin` recipe uses stable Release `.tar.zst` install-tree
+assets, not workflow artifacts, and bundles the legacy ABI libraries built from a
+pinned Arch Linux Archive snapshot for WebKitGTK 2.4 / `webkitgtk-3.0`, GMime
+2.6, and Enchant 1.x.
