@@ -21,6 +21,9 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     container: archlinux:base-devel
+    strategy:
+      matrix:
+        package: [frank-geary, frank-geary-bin]
     steps:
       - uses: actions/checkout@v4
 
@@ -33,15 +36,15 @@ jobs:
           chown -R builder:builder "$GITHUB_WORKSPACE"
 
       - name: Generate .SRCINFO
-        working-directory: packaging/aur/frank-geary
+        working-directory: packaging/aur/${{ matrix.package }}
         run: runuser -u builder -- makepkg --printsrcinfo > .SRCINFO.generated
 
       - name: Check .SRCINFO is current
-        working-directory: packaging/aur/frank-geary
+        working-directory: packaging/aur/${{ matrix.package }}
         run: diff -u .SRCINFO .SRCINFO.generated
 
       - name: Lint PKGBUILD
-        working-directory: packaging/aur/frank-geary
+        working-directory: packaging/aur/${{ matrix.package }}
         run: namcap PKGBUILD
 
   publish:
@@ -49,6 +52,10 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.publish
     runs-on: ubuntu-latest
     container: archlinux:base-devel
+    strategy:
+      matrix:
+        package: [frank-geary, frank-geary-bin]
+      max-parallel: 1
     steps:
       - uses: actions/checkout@v4
 
@@ -72,16 +79,16 @@ jobs:
             StrictHostKeyChecking yes
           EOF
 
-      - name: Publish frank-geary
+      - name: Publish ${{ matrix.package }}
         env:
           GIT_SSH_COMMAND: ssh -F /tmp/aur-ssh/config
         run: |
-          git clone ssh://aur@aur.archlinux.org/frank-geary.git /tmp/frank-geary-aur
-          cp packaging/aur/frank-geary/PKGBUILD packaging/aur/frank-geary/.SRCINFO /tmp/frank-geary-aur/
-          cd /tmp/frank-geary-aur
+          git clone ssh://aur@aur.archlinux.org/${{ matrix.package }}.git /tmp/aur-repo
+          cp packaging/aur/${{ matrix.package }}/PKGBUILD packaging/aur/${{ matrix.package }}/.SRCINFO /tmp/aur-repo/
+          cd /tmp/aur-repo
           git config user.name 'FrankGeary Release Bot'
           git config user.email 'akitaonrails@users.noreply.github.com'
           git add PKGBUILD .SRCINFO
           git diff --cached --quiet && exit 0
-          git commit -m "Update frank-geary package"
+          git commit -m "Update ${{ matrix.package }} package"
           git push
