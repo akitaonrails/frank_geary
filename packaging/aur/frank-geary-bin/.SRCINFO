@@ -20,6 +20,6 @@ pkgbase = frank-geary-bin
 	conflicts = frank-geary
 	noextract = frank-geary-0.11.2_frank.1-x86_64.tar.zst
 	source = frank-geary-0.11.2_frank.1-x86_64.tar.zst::https://github.com/akitaonrails/FrankGeary/releases/download/v0.11.2-frank.1/frank-geary-0.11.2_frank.1-x86_64.tar.zst
-	sha256sums = SKIP
+	sha256sums = fc913d5d575119acf509c9402430bc28557cfc605364144bef14f6814fc247ed
 
 pkgname = frank-geary-bin
