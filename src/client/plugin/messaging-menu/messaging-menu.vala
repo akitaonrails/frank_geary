@@ -39,7 +39,7 @@ public class Plugin.MessagingMenu :
 
     public override async void activate(bool is_startup) throws GLib.Error {
         this.app = new global::MessagingMenu.App(
-            "%s.desktop".printf(global::Application.Client.APP_ID)
+            "%s.desktop".printf(Config.APP_ID)
         );
         this.app.register();
         this.app.activate_source.connect(on_activate_source);
