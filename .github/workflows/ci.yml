@@ -71,3 +71,30 @@ jobs:
           geary:org.gnome.Geary.metainfo.xml-validate
           geary:mail-merge-test
           geary:engine-tests
+
+  # The messaging-menu plugin only compiles where libmessaging-menu
+  # exists, which excludes Arch entirely — a broken reference in it
+  # passes the job above but breaks Debian/Ubuntu builds (see PR #1).
+  build-debian:
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    steps:
+      - name: Install dependencies
+        run: |
+          sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/debian.sources
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get build-dep -y geary
+          DEBIAN_FRONTEND=noninteractive apt-get install -y git libmessaging-menu-dev
+
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          meson setup build -Dprofile=development
+
+      - name: Build
+        run: meson compile -C build
+
+      - name: Assert messaging-menu plugin built
+        run: test -f build/src/client/plugin/messaging-menu/libunity-messaging-menu.so
