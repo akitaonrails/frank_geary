@@ -84,7 +84,10 @@ jobs:
           sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/debian.sources
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get build-dep -y geary
-          DEBIAN_FRONTEND=noninteractive apt-get install -y git libmessaging-menu-dev
+          # Debian's geary 46 build-deps predate upstream's move to
+          # gcr-4 and libpeas-2, which this tree already uses
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git libmessaging-menu-dev libgcr-4-dev libpeas-2-dev
 
       - uses: actions/checkout@v4
 
