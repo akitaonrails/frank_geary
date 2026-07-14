@@ -53,6 +53,7 @@ The FrankGeary delta over upstream is intentionally minimal and grouped by featu
 2. **Copy Image context-menu action** — `src/client/conversation-viewer/conversation-message.vala`, `ui/conversation-message-menus.ui`
 3. **Folder sidebar toggle (Ctrl+Shift+M)** — `src/client/application/application-main-window.vala`, `application-configuration.vala`, `desktop/org.gnome.Geary.gschema.xml`
 4. **Docs / packaging / CI** — `.github/workflows/`, `packaging/aur/`, `docs/`
+5. **Build fixes pending upstream** — messaging-menu plugin `Config.APP_ID` (PR #1; the bug also exists on upstream `main`). Drop each of these when the equivalent fix lands upstream. The `build-debian` CI job exists because Arch has no `libmessaging-menu`, so only a Debian build compiles that plugin.
 
 The app id remains `org.gnome.Geary`; the only user-visible branding is the desktop launcher `Name=FRANK Geary` (`desktop/*.desktop.in.in` — deliberately untranslated so the name is uniform across locales).
 
