@@ -72,6 +72,7 @@ int main(string[] args) {
     engine.add_suite(new Geary.FtsSearchQueryTest().steal_suite());
 
     engine.add_suite(new Geary.ImapEngine.AccountProcessorTest().steal_suite());
+    engine.add_suite(new Geary.ImapEngine.Test().steal_suite());
     engine.add_suite(new Geary.ImapEngine.GenericAccountTest().steal_suite());
 
     // Depends on ImapDb.Database working correctly

@@ -32,6 +32,13 @@ namespace Geary.ImapEngine {
         );
     }
 
+    /** Consumes one remote-sync attempt and determines whether to retry. */
+    internal static bool should_retry_remote_sync(GLib.Error err,
+                                                  ref int attempts_remaining) {
+        attempts_remaining--;
+        return is_recoverable_failure(err) && attempts_remaining > 0;
+    }
+
     /**
      * Determines if an error was caused by the remote host or not.
      */
