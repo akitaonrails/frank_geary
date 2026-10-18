@@ -19,7 +19,14 @@ public class Geary.Smtp.Response {
 
     [NoReturn]
     public void throw_error(string msg) throws SmtpError {
-        throw new SmtpError.SERVER_ERROR("%s: %s", msg, first_line.to_string());
+        throw new SmtpError.SERVER_ERROR("%s: %s", msg, to_string().strip());
+    }
+
+    [NoReturn]
+    public void throw_message_rejected(string msg) throws SmtpError {
+        throw new SmtpError.MESSAGE_REJECTED(
+            "%s: %s", msg, to_string().strip()
+        );
     }
 
     public string to_string() {

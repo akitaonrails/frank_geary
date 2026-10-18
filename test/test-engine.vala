@@ -86,6 +86,7 @@ int main(string[] args) {
     engine.add_suite(new Geary.RFC822.MessageDataTest().steal_suite());
     engine.add_suite(new Geary.RFC822.PartTest().steal_suite());
     engine.add_suite(new Geary.RFC822.Utils.Test().steal_suite());
+    engine.add_suite(new Geary.Smtp.ResponseTest().steal_suite());
     // Message requires all of the rest of the package working, so put
     // last
     engine.add_suite(new Geary.RFC822.MessageTest().steal_suite());

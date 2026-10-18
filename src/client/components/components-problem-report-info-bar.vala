@@ -26,7 +26,20 @@ public class Components.ProblemReportInfoBar : InfoBar {
         string descr = "";
         string? retry = null;
 
-        if (report is Geary.AccountProblemReport) {
+        if (report is Geary.OutboxProblemReport) {
+            Geary.OutboxProblemReport outbox_report =
+                (Geary.OutboxProblemReport) report;
+
+            // Translators: Info bar title for an email rejected by
+            // the outgoing mail server.
+            title = _("Email not sent");
+            // Translators: Info bar sub-title for an email rejected
+            // by the outgoing mail server. String substitution is
+            // the account name.
+            descr = _(
+                "A message in the Outbox for %s was rejected by the mail server."
+            ).printf(outbox_report.account.display_name);
+        } else if (report is Geary.AccountProblemReport) {
             Geary.AccountProblemReport account_report =
                 (Geary.AccountProblemReport) report;
             string account_name = account_report.account.display_name;

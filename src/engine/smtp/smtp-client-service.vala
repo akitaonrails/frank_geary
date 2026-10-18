@@ -201,7 +201,11 @@ public class Geary.Smtp.ClientService : Geary.ClientService {
                 yield process_email(id, cancellable);
                 email_handled = true;
             } catch (SmtpError err) {
-                if (err is SmtpError.AUTHENTICATION_FAILED) {
+                if (err is SmtpError.MESSAGE_REJECTED) {
+                    report_problem(
+                        new OutboxProblemReport(this.account, err)
+                    );
+                } else if (err is SmtpError.AUTHENTICATION_FAILED) {
                     notify_authentication_failed();
                 } else if (err is SmtpError.STARTTLS_FAILED ||
                            err is SmtpError.NOT_CONNECTED) {

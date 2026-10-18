@@ -48,6 +48,7 @@ int main(string[] args) {
     client.add_suite(new Application.CertificateManagerTest().steal_suite());
     client.add_suite(new Application.ClientTest().steal_suite());
     client.add_suite(new Application.ConfigurationTest().steal_suite());
+    client.add_suite(new Components.ProblemReportInfoBarTest().steal_suite());
     client.add_suite(new Components.WebViewTest().steal_suite());
     client.add_suite(new Components.ValidatorTest().steal_suite());
     client.add_suite(new Composer.WebViewTest().steal_suite());

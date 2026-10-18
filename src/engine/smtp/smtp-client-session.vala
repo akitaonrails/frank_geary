@@ -217,8 +217,13 @@ public class Geary.Smtp.ClientSession : BaseObject, Logging.Source {
         response = yield cx.send_data_async(
             email.get_rfc822_buffer(SMTP_FORMAT), cancellable
         );
-        if (!response.code.is_success_completed())
-            response.throw_error("Unable to send message");
+        if (!response.code.is_success_completed()) {
+            if (response.code.get_status() == PERMANENT_FAILURE) {
+                response.throw_message_rejected("Unable to send message");
+            } else {
+                response.throw_error("Unable to send message");
+            }
+        }
 
         // if message was transmitted successfully, the state machine resets automatically
         rset_required = false;

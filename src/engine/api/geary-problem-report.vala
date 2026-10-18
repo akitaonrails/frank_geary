@@ -93,6 +93,21 @@ public class Geary.AccountProblemReport : ProblemReport {
 }
 
 /**
+ * Describes a message in the Outbox that the outgoing server rejected.
+ *
+ * This is a per-message failure, not an account or service failure. The
+ * message remains in the Outbox so it can be edited or removed.
+ */
+public class Geary.OutboxProblemReport : AccountProblemReport {
+
+
+    public OutboxProblemReport(AccountInformation account, Error error) {
+        base(account, error);
+    }
+
+}
+
+/**
  * Describes a service-related error that the engine encountered.
  */
 public class Geary.ServiceProblemReport : AccountProblemReport {

@@ -32,5 +32,8 @@ public errordomain Geary.SmtpError {
     SERVER_ERROR,
 
     /** Establishing STARTTLS  was attempted, but failed. */
-    STARTTLS_FAILED
+    STARTTLS_FAILED,
+
+    /** The server permanently rejected a specific message. */
+    MESSAGE_REJECTED
 }
