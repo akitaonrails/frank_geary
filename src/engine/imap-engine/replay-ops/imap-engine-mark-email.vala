@@ -22,6 +22,11 @@ private class Geary.ImapEngine.MarkEmail : Geary.ImapEngine.SendReplayOperation 
                      GLib.Cancellable? cancellable = null) {
         base("MarkEmail", OnError.RETRY);
 
+        // STORE flag changes are idempotent. Gmail occasionally returns a
+        // generic NO "System Error" for them, so allow a few spaced retries
+        // before rolling back the local change and reporting the failure.
+        this.max_remote_retries = 3;
+
         this.engine = engine;
 
         this.to_mark.add_all(to_mark);
@@ -78,6 +83,22 @@ private class Geary.ImapEngine.MarkEmail : Geary.ImapEngine.SendReplayOperation 
             );
         }
         this.unread_change = 0;
+    }
+
+    public override bool is_remote_failure_recoverable(GLib.Error err) {
+        return is_recoverable_flag_update_failure(err);
+    }
+
+    public override uint get_remote_retry_delay() {
+        return get_flag_update_retry_delay(this.remote_retry_count);
+    }
+
+    public override GLib.Error get_retry_exhausted_error(GLib.Error err) {
+        return new ImapError.RETRY_EXHAUSTED(
+            "Flag update failed after %d retries: %s",
+            this.remote_retry_count,
+            err.message
+        );
     }
 
     public override async void backout_local_async() throws Error {

@@ -53,6 +53,17 @@ public class Components.ProblemReportInfoBar : InfoBar {
                 "Geary has encountered a problem with %s."
             ).printf(account_name);
 
+            if (account_report.error != null &&
+                account_report.error.thrown is Geary.ImapError.RETRY_EXHAUSTED) {
+                // Translators: Info bar sub-title shown after Geary was
+                // unable to save a message's read/starred state despite
+                // retrying. String substitution is the account name.
+                descr = _(
+                    "The mail server repeatedly rejected a message status change for %s. " +
+                    "It may not have been saved on the server."
+                ).printf(account_name);
+            }
+
             if (report is Geary.ServiceProblemReport) {
                 Geary.ServiceProblemReport service_report =
                     (Geary.ServiceProblemReport) report;

@@ -8,7 +8,7 @@
 /**
  * Base class for folder operations executed by {@link ReplayQueue}.
  */
-private abstract class Geary.ImapEngine.ReplayOperation : Geary.BaseObject, Gee.Comparable<ReplayOperation> {
+internal abstract class Geary.ImapEngine.ReplayOperation : Geary.BaseObject, Gee.Comparable<ReplayOperation> {
 
     /**
      * Specifies the call scope (local, remote, both) of an operation.
@@ -50,6 +50,9 @@ private abstract class Geary.ImapEngine.ReplayOperation : Geary.BaseObject, Gee.
     public Scope scope { get; private set; }
     public OnError on_remote_error { get; protected set; }
     public int remote_retry_count { get; set; default = 0; }
+    // Preserve the replay queue's historical two retries by default. Specific
+    // idempotent operations may opt into a different budget.
+    public int max_remote_retries { get; protected set; default = 2; }
     public Error? err { get; private set; default = null; }
     public bool notified { get { return semaphore.can_pass; } }
 
@@ -150,6 +153,34 @@ private abstract class Geary.ImapEngine.ReplayOperation : Geary.BaseObject, Gee.
         if (this.scope != Scope.LOCAL_ONLY) {
             throw new GLib.IOError.NOT_SUPPORTED("Remote operation is not implemented");
         }
+    }
+
+    /** Determines if a remote failure is safe for this operation to retry. */
+    public virtual bool is_remote_failure_recoverable(GLib.Error err) {
+        return is_recoverable_failure(err);
+    }
+
+    /** Consumes one retry when the failure and remaining budget allow it. */
+    internal bool prepare_remote_retry(GLib.Error err) {
+        bool should_retry = (
+            this.on_remote_error == RETRY &&
+            this.remote_retry_count < this.max_remote_retries &&
+            is_remote_failure_recoverable(err)
+        );
+        if (should_retry) {
+            this.remote_retry_count++;
+        }
+        return should_retry;
+    }
+
+    /** Returns the delay before the next remote retry. */
+    public virtual uint get_remote_retry_delay() {
+        return 0;
+    }
+
+    /** Returns the error to report after the remote retry budget is spent. */
+    public virtual GLib.Error get_retry_exhausted_error(GLib.Error err) {
+        return err;
     }
 
     /**

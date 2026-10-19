@@ -106,6 +106,8 @@ public class Geary.Imap.ClientService : Geary.ClientService {
     private Nonblocking.Mutex sessions_mutex = new Nonblocking.Mutex();
     private Gee.Set<ClientSession> all_sessions =
         new Gee.HashSet<ClientSession>();
+    private Gee.Map<ClientSession, ulong> disconnect_handlers =
+        new Gee.HashMap<ClientSession, ulong>();
     private Nonblocking.Queue<ClientSession> free_queue =
         new Nonblocking.Queue<ClientSession>.fifo();
 
@@ -450,7 +452,7 @@ public class Geary.Imap.ClientService : Geary.ClientService {
 
         // Only bother tracking disconnects and enabling keeping alive
         // now the session is properly established.
-        new_session.notify["disconnected"].connect(on_session_disconnected);
+        track_session_disconnect(new_session);
         new_session.enable_keepalives(selected_keepalive_sec,
                                       unselected_keepalive_sec,
                                       selected_with_idle_keepalive_sec);
@@ -525,10 +527,36 @@ public class Geary.Imap.ClientService : Geary.ClientService {
             debug("Error removing session: %s", err.message);
         }
 
-        if (removed) {
-            session.notify["disconnected"].connect(on_session_disconnected);
-        }
+        if (removed)
+            untrack_session_disconnect(session);
         return removed;
+    }
+
+    /** Starts tracking disconnects for a session added to the pool. */
+    internal void track_session_disconnect(ClientSession session) {
+        assert(!this.disconnect_handlers.has_key(session));
+        ulong handler_id = session.notify["disconnected"].connect(
+            on_session_disconnected
+        );
+        this.disconnect_handlers.set(session, handler_id);
+    }
+
+    /** Stops tracking disconnects for a session removed from the pool. */
+    internal void untrack_session_disconnect(ClientSession session) {
+        ulong handler_id = this.disconnect_handlers.get(session);
+        if (handler_id != 0) {
+            GLib.SignalHandler.disconnect(session, handler_id);
+            this.disconnect_handlers.unset(session);
+        }
+    }
+
+    /** Determines if the pool still has a live disconnect handler. */
+    internal bool is_tracking_session_disconnect(ClientSession session) {
+        ulong handler_id = this.disconnect_handlers.get(session);
+        return (
+            handler_id != 0 &&
+            GLib.SignalHandler.is_connected(session, handler_id)
+        );
     }
 
     private void on_session_disconnected(GLib.Object source,

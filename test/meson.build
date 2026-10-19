@@ -47,6 +47,7 @@ test_engine_sources = [
   'engine/imap/response/imap-fetch-data-decoder-test.vala',
   'engine/imap/response/imap-namespace-response-test.vala',
   'engine/imap/transport/imap-client-connection-test.vala',
+  'engine/imap/transport/imap-client-service-test.vala',
   'engine/imap/transport/imap-client-session-test.vala',
   'engine/imap/transport/imap-deserializer-test.vala',
   'engine/imap-db/imap-db-account-test.vala',

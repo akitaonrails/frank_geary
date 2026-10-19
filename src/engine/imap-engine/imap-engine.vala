@@ -32,6 +32,23 @@ namespace Geary.ImapEngine {
         );
     }
 
+    /** Determines if a failed idempotent flag update is safe to retry. */
+    internal static bool is_recoverable_flag_update_failure(GLib.Error err) {
+        return is_recoverable_failure(err) || err is ImapError.SERVER_ERROR;
+    }
+
+    /** Returns the delay before the given flag-update retry. */
+    internal static uint get_flag_update_retry_delay(int retry_number) {
+        switch (retry_number) {
+        case 1:
+            return 1;
+        case 2:
+            return 3;
+        default:
+            return 9;
+        }
+    }
+
     /** Consumes one remote-sync attempt and determines whether to retry. */
     internal static bool should_retry_remote_sync(GLib.Error err,
                                                   ref int attempts_remaining) {

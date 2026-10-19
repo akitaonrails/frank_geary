@@ -68,6 +68,15 @@ public errordomain Geary.ImapError {
      * connection to the server was established but the server
      * indicated it is not currently servicing the connection.
      */
-    UNAVAILABLE;
+    UNAVAILABLE,
+
+    /**
+     * A normally safe operation still failed after automatic retries.
+     *
+     * The error message contains the final server response. This distinct
+     * code lets clients explain that recovery was already attempted before
+     * asking the user to intervene.
+     */
+    RETRY_EXHAUSTED;
 
 }

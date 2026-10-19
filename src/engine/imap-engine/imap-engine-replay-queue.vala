@@ -16,12 +16,6 @@
 private class Geary.ImapEngine.ReplayQueue : BaseObject, Logging.Source {
 
 
-    // Maximum number of times a retry-able operation should be
-    // retried before failing. It's set to 1 since we only attempt to
-    // retry if there's some transient error, so if it doesn't work
-    // second time around, it probably won't work at all.
-    private const int MAX_OP_RETRIES = 1;
-
     // This value is high because delays between back-to-back
     // unsolicited notifications have been see as high as 250ms
     private const int NOTIFICATION_QUEUE_WAIT_MSEC = 1000;
@@ -606,16 +600,24 @@ private class Geary.ImapEngine.ReplayQueue : BaseObject, Logging.Source {
 
                     // If a recoverable failure and operation allows
                     // remote replay and not closing, re-schedule now
-                    if (op.on_remote_error == RETRY &&
-                        op.remote_retry_count <= MAX_OP_RETRIES &&
-                        is_recoverable_failure(replay_err) &&
-                        state == State.OPEN) {
-                        debug("Schedule op retry %s on %s", op.to_string(), to_string());
+                    bool retryable = (
+                        op.on_remote_error == RETRY &&
+                        op.is_remote_failure_recoverable(replay_err)
+                    );
+                    if (state == State.OPEN &&
+                        op.prepare_remote_retry(replay_err)) {
+                        uint retry_delay = op.get_remote_retry_delay();
+                        debug(
+                            "Schedule op retry %s on %s after %u seconds",
+                            op.to_string(), to_string(), retry_delay
+                        );
 
-                        // the Folder will disconnect and reconnect due to the hard error and
-                        // wait_for_open_async() will block this command until reconnected and
-                        // normalized
-                        op.remote_retry_count++;
+                        // Network errors will make the folder reconnect before
+                        // the next attempt. Server rejections keep the current
+                        // session but are spaced out to avoid hammering it.
+                        if (retry_delay > 0) {
+                            yield Geary.Scheduler.sleep_async(retry_delay);
+                        }
                         remote_queue.send(op);
 
                         continue;
@@ -628,7 +630,12 @@ private class Geary.ImapEngine.ReplayQueue : BaseObject, Logging.Source {
                             replay_err.message);
 
                         // store for notification
-                        remote_err = replay_err;
+                        remote_err = (
+                            retryable &&
+                            op.remote_retry_count >= op.max_remote_retries
+                            ? op.get_retry_exhausted_error(replay_err)
+                            : replay_err
+                        );
                     }
                 }
             } else if (!is_close_op) {
